@@ -69,6 +69,7 @@ $products = $repo->getByUser($user_id);
     <meta charset="UTF-8">
     <title>Sell Item</title>
     <link rel="stylesheet" href="../assets/sell-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 
 <body>
@@ -79,8 +80,9 @@ $products = $repo->getByUser($user_id);
         <a href="index.php">Home</a>
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
-        <a href="sell.php">Sell</a>
-        <a href="account.php">Account</a>
+        <a href="seller_dashboard.php">Sell</a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        
     </div>
 </nav>
 

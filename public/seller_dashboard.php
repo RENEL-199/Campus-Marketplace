@@ -13,9 +13,7 @@ $db = new Database();
 $pdo = $db->pdo;
 $repo = new ProductRepository();
 
-/* =========================
-   DELETE PRODUCT
-========================= */
+
 if (isset($_POST['delete_id'])) {
 
     $stmt = $pdo->prepare("DELETE FROM products WHERE id=? AND user_id=?");
@@ -25,9 +23,7 @@ if (isset($_POST['delete_id'])) {
     exit;
 }
 
-/* =========================
-   ADD PRODUCT
-========================= */
+
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
 
     $name = $_POST["name"];
@@ -233,7 +229,7 @@ nav a {
 </style>
 
 </head>
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <body>
 
 <nav>
@@ -243,8 +239,8 @@ nav a {
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
         <a href="seller_dashboard.php">Sell</a>
-        <a href="account.php">Account</a>
-        <a href="logout.php">Log Out</a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        
     </div>
 </nav>
 

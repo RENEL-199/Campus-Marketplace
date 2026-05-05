@@ -92,6 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_FILES['profile_pic'])) {
 <title>My Account</title>
 
 <link rel="stylesheet" href="../assets/index-style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 <style>
 
@@ -169,8 +170,8 @@ input, select {
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
         <a href="seller_dashboard.php">Sell</a>
-        <a href="account.php">Account</a>
-        <a href="logout.php">Log Out</a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        
     </div>
 </nav>
 
@@ -247,6 +248,8 @@ input, select {
     </form>
 </div>
 
+<br>
+<a href="logout.php">← Log Out</a>
 </div>
 
 </body>

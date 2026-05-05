@@ -9,9 +9,6 @@ $user_id = current_user_id();
 $db = new Database();
 $pdo = $db->pdo;
 
-/* =========================
-   GET CART ITEMS
-========================= */
 $stmt = $pdo->prepare("
     SELECT 
         c.product_id,
@@ -47,21 +44,15 @@ foreach ($items as $item) {
 <title>Checkout</title>
 
 <link rel="stylesheet" href="../assets/index-style.css">
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 
-/* =========================
-   GLOBAL
-========================= */
 body {
     font-family: 'Segoe UI', sans-serif;
     background: #f4f7f5;
     margin: 0;
 }
 
-/* =========================
-   NAVBAR
-========================= */
 nav {
     background: #3A7D5D;
     color: white;
@@ -94,9 +85,6 @@ nav a:hover::after {
     width: 100%;
 }
 
-/* =========================
-   PAGE LAYOUT
-========================= */
 .checkout-wrapper {
     max-width: 1100px;
     margin: 40px auto;
@@ -106,9 +94,6 @@ nav a:hover::after {
     padding: 0 15px;
 }
 
-/* =========================
-   LEFT SIDE (FORM)
-========================= */
 .checkout-box {
     background: white;
     border-radius: 16px;
@@ -137,9 +122,7 @@ input:focus, textarea:focus {
     box-shadow: 0 0 0 3px rgba(58,125,93,0.1);
 }
 
-/* =========================
-   RIGHT SIDE (SUMMARY)
-========================= */
+
 .summary-box {
     background: white;
     border-radius: 16px;
@@ -150,7 +133,7 @@ input:focus, textarea:focus {
     top: 20px;
 }
 
-/* ITEM LIST */
+
 .order-item {
     display: flex;
     justify-content: space-between;
@@ -174,9 +157,7 @@ input:focus, textarea:focus {
     text-align: right;
 }
 
-/* =========================
-   BUTTON
-========================= */
+
 .confirm-btn {
     width: 100%;
     margin-top: 15px;
@@ -217,8 +198,8 @@ input:focus, textarea:focus {
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
         <a href="seller_dashboard.php">Sell</a>
-        <a href="account.php">Account</a>
-        <a href="logout.php">Log Out</a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        
     </div>
 </nav>
 

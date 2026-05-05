@@ -2,14 +2,8 @@
 
 session_start();
 
-/* =========================
-   CLEAR ALL SESSION DATA
-========================= */
 $_SESSION = [];
 
-/* =========================
-   DESTROY SESSION COOKIE
-========================= */
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
     setcookie(
@@ -23,13 +17,9 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-/* =========================
-   DESTROY SESSION
-========================= */
+
 session_destroy();
 
-/* =========================
-   REDIRECT TO LOGIN PAGE
-========================= */
+
 header("Location: login.php");
 exit;

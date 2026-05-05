@@ -22,10 +22,8 @@ $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <html>
 <head>
 <title>Orders</title>
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
-
-
 /* RESET */
 * {
     margin: 0;
@@ -170,8 +168,8 @@ hr {
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
         <a href="seller_dashboard.php">Sell</a>
-        <a href="account.php">Account</a>
-        <a href="logout.php">Log Out</a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        
     </div>
 </nav>
 
@@ -197,14 +195,11 @@ hr {
 
 </div>
 
-<!-- MODAL -->
 <div class="modal" id="receiptModal">
     <div class="modal-content">
 
-        <!-- CLOSE BUTTON ALWAYS VISIBLE -->
         <span class="close" onclick="closeModal()">✕</span>
 
-        <!-- AJAX CONTENT GOES HERE -->
         <div id="receiptContent">
             Loading...
         </div>
