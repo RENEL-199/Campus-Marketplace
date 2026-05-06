@@ -235,10 +235,10 @@ nav a {
 <nav>
     <h1>Seller Dashboard</h1>
     <div>
-        <a href="index.php">Home</a>
-        <a href="cart.php">Cart</a>
-        <a href="orders.php">Orders</a>
-        <a href="seller_dashboard.php">Sell</a>
+  <a href="index.php"><i class="fa-solid fa-house"></i></a>
+        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
+        <a href="orders.php"><i class="fa-solid fa-box"></i></a>
+        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
         
     </div>
