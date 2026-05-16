@@ -4,8 +4,11 @@ session_start();
 
 $_SESSION = [];
 
+// remove session cookie
 if (ini_get("session.use_cookies")) {
+
     $params = session_get_cookie_params();
+
     setcookie(
         session_name(),
         '',
@@ -17,9 +20,16 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
+// remove remember me cookie
+setcookie(
+    "remember_token",
+    "",
+    time() - 3600,
+    "/"
+);
 
 session_destroy();
 
-
 header("Location: login.php");
 exit;
+?>

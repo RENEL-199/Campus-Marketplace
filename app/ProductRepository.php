@@ -47,7 +47,7 @@ class ProductRepository {
         ]);
     }
 
-    /* DELETE PRODUCT (SAFE) */
+    /* DELETE PRODUCT  */
     public function delete(int $id, int $user_id): void {
         $stmt = $this->pdo->prepare("
             DELETE FROM products WHERE id=? AND user_id=?

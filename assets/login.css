@@ -35,6 +35,24 @@ background: linear-gradient(135deg, #1F2937 0%, #2F684C 50%, #3A7D5D 100%);
     overflow: hidden;
 }
 
+.class-1{
+display: flex;
+flex-direction: row;
+justify-content: center;
+gap: 5px;
+}
+
+.class-1 input{
+width: 20px;
+justify-self: start;
+}
+
+.test{
+    text-align: center;
+    margin-top: 10px;
+    font-size: small;
+    color: #1F2937;
+}
 /* CONTAINER */
 .container {
     display: flex;

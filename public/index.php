@@ -83,7 +83,7 @@ if ($search) {
                 Search: <strong><?= htmlspecialchars($search) ?></strong>
             <?php endif; ?>
         </p>
-    <?php endif; ?>
+    <?php endif; ?> 
 
     <!-- CATEGORIES -->
     <h2 class="section-title">Categories</h2>
