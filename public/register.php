@@ -4,31 +4,38 @@ require_once __DIR__ . '/../app/Database.php';
 $db = new Database();
 $pdo = $db->pdo;
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $username = $_POST['username'];
-    $studoid = $_POST['studoid'];
+    $user_name = trim($_POST['username']);
+    $stud_id = trim($_POST['studoid']);
     $password = $_POST['password'];
     $reenter_password = $_POST['reenter_password'];
 
-    // Check if passwords match
-    if ($password !== $reenter_password) {
-       
-    } else {
+    // Validate empty fields
+    if (empty($user_name) || empty($stud_id) || empty($password)) {
+        $error = "All fields are required!";
+    }
+
+    // Check password match
+    elseif ($password !== $reenter_password) {
+        $error = "Passwords do not match!";
+    }
+
+    else {
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt = $pdo->prepare("INSERT INTO users (username, studoid, password) VALUES (?, ?, ?)");
-        $stmt->execute([$username, $studoid, $hashedPassword]);
+        $stmt = $pdo->prepare("
+            INSERT INTO users (user_name, stud_id, password)
+            VALUES (?, ?, ?)
+        ");
+
+        $stmt->execute([$user_name, $stud_id, $hashedPassword]);
 
         header("Location: login.php");
         exit;
     }
-
-    $error = "";
-
-if ($password !== $reenter_password) {
-    $error = "Passwords do not match!";
-}
 }
 ?>
 

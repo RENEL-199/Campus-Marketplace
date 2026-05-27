@@ -2,7 +2,7 @@
 
 class Database {
     private string $host = "localhost";
-    private string $db = "campus_market";
+    private string $db = "IskoHub";
     private string $user = "root";
     private string $pass = "";
     private string $charset = "utf8mb4";

@@ -12,26 +12,29 @@ $user_id = current_user_id();
 $repo = new ProductRepository();
 $view = new View();
 
-
 $search = $_GET['q'] ?? null;
 $category = $_GET['category'] ?? null;
 
-$products = array_filter($repo->getAll(), function ($product) {
-    return $product->stock > 0;
+/* GET ALL PRODUCTS */
+$products = $repo->getAll();
+
+/* FILTER: IN STOCK ONLY */
+$products = array_filter($products, function ($product) {
+    return $product->prod_stock > 0;
 });
 
-if ($category) {
-    $products = array_filter($products, function ($product) use ($category) {
-        return $product->category === $category;
+/* SEARCH FILTER */
+if ($search) {
+    $products = array_filter($products, function ($product) use ($search) {
+        return stripos($product->prod_name, $search) !== false ||
+               stripos($product->prod_desc, $search) !== false;
     });
 }
 
-
-if ($search) {
-    $products = array_filter($products, function ($product) use ($search) {
-        return stripos($product->name, $search) !== false ||
-               stripos($product->description, $search) !== false ||
-               stripos($product->category, $search) !== false;
+/* CATEGORY FILTER (TEMP: using category_id) */
+if ($category) {
+    $products = array_filter($products, function ($product) use ($category) {
+        return $product->category_id == $category;
     });
 }
 
@@ -58,14 +61,11 @@ if ($search) {
         <a href="orders.php"><i class="fa-solid fa-box"></i></a>
         <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
-        
     </div>
 </nav>
 
-<!-- HERO -->
 <section class="hero">
     <h2>Buy & Sell Campus Essentials</h2>
-    <p>Find affordable gadgets, school supplies, and services near you.</p>
 
     <form method="GET" class="search-box">
         <input type="text" name="q" placeholder="Search items..."
@@ -76,29 +76,26 @@ if ($search) {
 
 <div class="container">
 
-    <!-- ACTIVE FILTER INFO -->
     <?php if ($search || $category): ?>
-        <p style="margin-bottom: 15px;">
+        <p>
             <?php if ($search): ?>
                 Search: <strong><?= htmlspecialchars($search) ?></strong>
             <?php endif; ?>
         </p>
-    <?php endif; ?> 
+    <?php endif; ?>
 
-    <!-- CATEGORIES -->
     <h2 class="section-title">Categories</h2>
 
     <div class="categories">
 
         <a class="category <?= !$category ? 'active' : '' ?>" href="index.php">All</a>
-        <a class="category <?= $category=='Electronics'?'active':'' ?>" href="index.php?category=Electronics">Electronics</a>
-        <a class="category <?= $category=='School Supplies'?'active':'' ?>" href="index.php?category=School Supplies">School Supplies</a>
-        <a class="category <?= $category=='Services'?'active':'' ?>" href="index.php?category=Services">Services</a>
-        <a class="category <?= $category=='Preloved'?'active':'' ?>" href="index.php?category=Preloved">Preloved</a>
+        <a class="category <?= $category==1?'active':'' ?>" href="index.php?category=1">Electronics</a>
+        <a class="category <?= $category==2?'active':'' ?>" href="index.php?category=2">School Supplies</a>
+        <a class="category <?= $category==3?'active':'' ?>" href="index.php?category=3">Services</a>
+        <a class="category <?= $category==4?'active':'' ?>" href="index.php?category=4">Preloved</a>
 
     </div>
 
-    <!-- PRODUCTS -->
     <h2 class="section-title">Featured Items</h2>
 
     <?php
@@ -109,19 +106,11 @@ if ($search) {
         }
     ?>
 
-    <!-- PRODUCT MODAL -->
     <div id="productModal" class="modal">
-
         <div class="modal-content">
-
             <span class="close-btn" onclick="closeModal()">&times;</span>
-
-            <div id="modal-body">
-
-            </div>
-
+            <div id="modal-body"></div>
         </div>
-
     </div>
 
 </div>
@@ -129,8 +118,6 @@ if ($search) {
 <footer>
     © 2026 Campus Market — Built for students
 </footer>
-
-</body>
 
 <script>
 function openProduct(id) {
@@ -147,4 +134,5 @@ function closeModal() {
 }
 </script>
 
+</body>
 </html>
