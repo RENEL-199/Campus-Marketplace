@@ -129,7 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
 
         <div class="txt-1">
-            Campus Market Place
+            IskoHub
         </div>
 
         <div class="txt-sm">
