@@ -5,33 +5,35 @@ class View {
     public function renderProductCard(Product $product): string {
 
         // SHORT DESCRIPTION (80 chars max)
-        $shortDesc = strlen($product->description) > 80
-            ? substr($product->description, 0, strrpos(substr($product->description, 0, 80), ' ')) . "..."
-            : $product->description;
+        $desc = $product->prod_desc ?? '';
+
+        $shortDesc = strlen($desc) > 80
+            ? substr($desc, 0, strrpos(substr($desc, 0, 80), ' ')) . "..."
+            : $desc;
 
         return "
         <div class='card'>
-            <img src='{$product->image}' alt='product'>
+            <img src='{$product->prod_image}' alt='product'>
 
             <div class='card-content'>
                 <div class='container-2'>
-                    <h3>{$product->name}</h3>
-                    <span class='category-tag'>{$product->category}</span>
+                    <h3>{$product->prod_name}</h3>
+                    <span class='category-tag'>{$product->category_name}</span>
                 </div>
 
                 <p>
                     {$shortDesc} 
-                    <a href='#' onclick='openProduct({$product->id}); return false;'>
+                    <a href='#' onclick='openProduct({$product->prod_id}); return false;'>
                         Read more
                     </a>
                 </p>
 
                 <div class='container-2'>
-                    <div class='price'>₱{$product->price}</div>
-                    <div class='stock'>Stock: {$product->stock}</div>
+                    <div class='price'>₱{$product->prod_price}</div>
+                    <div class='stock'>Stock: {$product->prod_stock}</div>
                 </div>
 
-                <button onclick='openProduct({$product->id})'>
+                <button onclick='openProduct({$product->prod_id})'>
                     View Item
                 </button>
             </div>

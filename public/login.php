@@ -8,6 +8,7 @@ $pdo = $db->pdo;
 
 $error = "";
 
+/* AUTO LOGIN (REMEMBER ME) */
 if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
 
     $stmt = $pdo->prepare("SELECT * FROM users WHERE remember_token = ?");
@@ -16,38 +17,46 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user) {
-        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_id'] = $user['user_id'];
+        $_SESSION['user_name'] = $user['user_name'];
 
         header("Location: index.php");
         exit;
     }
 }
 
+/* LOGIN PROCESS */
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $username = trim($_POST['username']);
+    $user_name = trim($_POST['username']); // form stays "username"
     $password = $_POST['password'];
 
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-    $stmt->execute([$username]);
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE user_name = ?");
+    $stmt->execute([$user_name]);
 
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password'])) {
 
-        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_id'] = $user['user_id'];
+        $_SESSION['user_name'] = $user['user_name'];
 
+        /* REMEMBER ME */
         if (isset($_POST['remember'])) {
 
             $token = bin2hex(random_bytes(32));
 
-            $stmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE id = ?");
-            $stmt->execute([$token, $user['id']]);
+            $stmt = $pdo->prepare("
+                UPDATE users 
+                SET remember_token = ? 
+                WHERE user_id = ?
+            ");
+            $stmt->execute([$token, $user['user_id']]);
 
             setcookie(
                 "remember_token",
                 $token,
-                time() + (60 * 10), //10 mins
+                time() + (60 * 60 * 24 * 7), // 7 days
                 "/",
                 "",
                 false,
@@ -129,7 +138,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
 
         <div class="txt-1">
-            Campus Market Place
+            IskoHub
         </div>
 
         <div class="txt-sm">

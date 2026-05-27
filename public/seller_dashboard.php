@@ -11,29 +11,39 @@ $user_id = current_user_id();
 
 $db = new Database();
 $pdo = $db->pdo;
+
 $repo = new ProductRepository();
 
-
+/* =========================
+   DELETE PRODUCT
+========================= */
 if (isset($_POST['delete_id'])) {
 
-    $stmt = $pdo->prepare("DELETE FROM products WHERE id=? AND user_id=?");
+    $stmt = $pdo->prepare("
+        DELETE FROM products 
+        WHERE prod_id = ? AND user_id = ?
+    ");
+
     $stmt->execute([$_POST['delete_id'], $user_id]);
 
     header("Location: seller_dashboard.php");
     exit;
 }
 
-
+/* =========================
+   ADD PRODUCT
+========================= */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
 
     $name = $_POST["name"];
     $desc = $_POST["description"];
     $price = $_POST["price"];
-    $category = $_POST["category"];
+    $category_id = $_POST["category"];
     $stock = (int) $_POST["stock"];
 
     $image = "uploads/default.png";
 
+    /* IMAGE UPLOAD */
     if (isset($_FILES["image"]) && $_FILES["image"]["error"] === 0) {
 
         $uploadDir = __DIR__ . "/uploads/";
@@ -50,6 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
         }
     }
 
+    /* CREATE PRODUCT OBJECT */
     $product = new Product(
         0,
         $user_id,
@@ -57,8 +68,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
         $desc,
         $price,
         $image,
-        $category,
-        $stock
+        $stock,
+        null,
+        null,
+        $category_id
     );
 
     $repo->add($product);
@@ -67,17 +80,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM products WHERE user_id=? ORDER BY id DESC");
-$stmt->execute([$user_id]);
-$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+/* =========================
+   GET PRODUCTS
+========================= */
+$products = $repo->getByUser($user_id);
 
-
+/* =========================
+   STATS
+========================= */
 $total = count($products);
 $active = 0;
 $out = 0;
 
 foreach ($products as $p) {
-    if ($p['stock'] > 0) $active++;
+    if ($p->prod_stock > 0) $active++;
     else $out++;
 }
 
@@ -88,18 +104,20 @@ foreach ($products as $p) {
 <head>
 <meta charset="UTF-8">
 <title>Seller Dashboard</title>
+
 <link rel="stylesheet" href="../assets/index-style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 <style>
 
-/* PAGE LAYOUT */
+/* PAGE */
 .dashboard {
     max-width: 1200px;
     margin: 30px auto;
     padding: 20px;
 }
 
-/* GRID LAYOUT */
+/* GRID */
 .grid {
     display: grid;
     grid-template-columns: 1fr 1.3fr;
@@ -131,10 +149,10 @@ foreach ($products as $p) {
 }
 
 .stat h2 {
-    color: var(--primary);
+    color: #3A7D5D;
 }
 
-/* PRODUCTS */
+/* PRODUCT LIST */
 .product {
     display: flex;
     justify-content: space-between;
@@ -173,18 +191,33 @@ input, textarea, select {
 button {
     width: 100%;
     padding: 12px;
-    background: var(--primary);
+    background: #3A7D5D;
     color: white;
     border: none;
     border-radius: 10px;
     cursor: pointer;
 }
 
+/* NAV */
+nav {
+    background: #3A7D5D;
+    color: white;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+}
+
+nav a {
+    color: white;
+    margin-left: 15px;
+    text-decoration: none;
+}
+
 .image-upload {
     width: 100%;
     height: 220px;
-    border: 2px dashed var(--secondary);
-    border-radius: var(--radius);
+    border: 2px dashed #A7D7C5;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -207,46 +240,29 @@ button {
 }
 
 .image-upload span {
-    color: var(--text-light);
     position: absolute;
-}
-
-/* NAV */
-nav {
-    background: var(--primary);
-    color: white;
-    padding: 15px 30px;
-    display: flex;
-    justify-content: space-between;
-}
-
-nav a {
-    color: white;
-    margin-left: 15px;
-    text-decoration: none;
+    color: #888;
 }
 
 </style>
-
 </head>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
 <body>
 
 <nav>
     <h1>Seller Dashboard</h1>
     <div>
-  <a href="index.php"><i class="fa-solid fa-house"></i></a>
+        <a href="index.php"><i class="fa-solid fa-house"></i></a>
         <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
         <a href="orders.php"><i class="fa-solid fa-box"></i></a>
         <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
-        
     </div>
 </nav>
 
 <div class="dashboard">
 
-
+<!-- STATS -->
 <div class="stats">
 
     <div class="stat">
@@ -268,33 +284,33 @@ nav a {
 
 <div class="grid">
 
-
+<!-- ADD PRODUCT -->
 <div class="card">
 
 <h2>Add Product</h2>
 
 <form method="POST" enctype="multipart/form-data">
 
-        <label class="image-upload">
-            <input type="file" name="image" accept="image/*" id="imageInput" required>
-            <img id="preview">
-            <span id="uploadText">Click to upload image</span>
-        </label>
+    <label class="image-upload">
+        <input type="file" name="image" id="imageInput" required>
+        <img id="preview">
+        <span id="uploadText">Click to upload image</span>
+    </label>
 
     <input type="text" name="name" placeholder="Product Name" required>
 
     <textarea name="description" placeholder="Description" required></textarea>
 
-    <input type="text" name="price" placeholder="Price" required>
+    <input type="number" name="price" placeholder="Price" required>
 
     <input type="number" name="stock" placeholder="Stock" required>
 
     <select name="category">
-        <option>Electronics</option>
-        <option>School Supplies</option>
-        <option>Services</option>
-        <option>Preloved</option>
-        <option>Others</option>
+        <option value="1">Electronics</option>
+        <option value="2">School Supplies</option>
+        <option value="3">Services</option>
+        <option value="4">Preloved</option>
+        <option value="5">Others</option>
     </select>
 
     <button type="submit">Add Product</button>
@@ -303,7 +319,7 @@ nav a {
 
 </div>
 
-
+<!-- PRODUCT LIST -->
 <div class="card">
 
 <h2>Products</h2>
@@ -312,15 +328,15 @@ nav a {
 
 <div class="product">
 
-    <img src="<?= $p['image'] ?>">
+    <img src="<?= htmlspecialchars($p->prod_image) ?>">
 
     <div>
-        <strong><?= htmlspecialchars($p['name']) ?></strong><br>
-        ₱<?= $p['price'] ?> | Stock: <?= $p['stock'] ?>
+        <strong><?= htmlspecialchars($p->prod_name) ?></strong><br>
+        ₱<?= $p->prod_price ?> | Stock: <?= $p->prod_stock ?>
     </div>
 
-    <form method="POST" onsubmit="return confirm('Delete?')">
-        <input type="hidden" name="delete_id" value="<?= $p['id'] ?>">
+    <form method="POST" onsubmit="return confirm('Delete this product?')">
+        <input type="hidden" name="delete_id" value="<?= $p->prod_id ?>">
         <button class="delete-btn">X</button>
     </form>
 

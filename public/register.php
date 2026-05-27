@@ -4,30 +4,38 @@ require_once __DIR__ . '/../app/Database.php';
 $db = new Database();
 $pdo = $db->pdo;
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $username = $_POST['username'];
+    $user_name = trim($_POST['username']);
+    $stud_id = trim($_POST['studoid']);
     $password = $_POST['password'];
     $reenter_password = $_POST['reenter_password'];
 
-    // Check if passwords match
-    if ($password !== $reenter_password) {
-       
-    } else {
+    // Validate empty fields
+    if (empty($user_name) || empty($stud_id) || empty($password)) {
+        $error = "All fields are required!";
+    }
+
+    // Check password match
+    elseif ($password !== $reenter_password) {
+        $error = "Passwords do not match!";
+    }
+
+    else {
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt = $pdo->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
-        $stmt->execute([$username, $hashedPassword]);
+        $stmt = $pdo->prepare("
+            INSERT INTO users (user_name, stud_id, password)
+            VALUES (?, ?, ?)
+        ");
+
+        $stmt->execute([$user_name, $stud_id, $hashedPassword]);
 
         header("Location: login.php");
         exit;
     }
-
-    $error = "";
-
-if ($password !== $reenter_password) {
-    $error = "Passwords do not match!";
-}
 }
 ?>
 
@@ -44,7 +52,7 @@ if ($password !== $reenter_password) {
 
 <div class="box-1">
  <div class="txt-sm">Welcome to</div>
-<div class="txt-1">Campus Market Place</div>
+<div class="txt-1">IskoHub</div>
 <div class="txt-sm">
 A student-friendly marketplace where you can buy, sell, and discover affordable items, services, and essentials within your campus community.
 </div>
@@ -56,6 +64,7 @@ A student-friendly marketplace where you can buy, sell, and discover affordable 
 <form method="post">
 <h2>Register</h2>
 <input type="text" name="username" placeholder="Username" required>
+<input type="text" name="studoid" placeholder="Student ID" required>
 <input type="password" name="password" placeholder="Password" required>
 <input type="password" name="reenter_password" placeholder="Re-enter Password" required>
 <?php if (!empty($error)) : ?>
