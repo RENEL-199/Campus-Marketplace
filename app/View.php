@@ -22,29 +22,36 @@ class View {
         $price = number_format((float)$product->prod_price, 0);
 >>>>>>> origin/polin
 
+        $price = number_format((float)$product->prod_price, 0);
+
         return "
         <div class='card'>
             <img src='{$product->prod_image}' alt='product'>
 
             <div class='card-content'>
 <<<<<<< HEAD
+<<<<<<< HEAD
                 <div class='container-2'>
+=======
+                <div class='card-top-row'>
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
                     <h3>{$product->prod_name}</h3>
                     <span class='category-tag'>{$product->category_name}</span>
                 </div>
 
-                <p>
+                <p class='card-description'>
                     {$shortDesc} 
                     <a href='#' onclick='openProduct({$product->prod_id}); return false;'>
                         Read more
                     </a>
                 </p>
 
-                <div class='container-2'>
-                    <div class='price'>₱{$product->prod_price}</div>
+                <div class='card-price-stock-row'>
+                    <div class='price'>₱{$price}</div>
                     <div class='stock'>Stock: {$product->prod_stock}</div>
                 </div>
 
+<<<<<<< HEAD
                 <button onclick='openProduct({$product->prod_id})'>
 =======
 
@@ -70,6 +77,9 @@ class View {
 
                 <button type='button' onclick='openProduct({$product->prod_id})'>
 >>>>>>> origin/polin
+=======
+                <button type='button' onclick='openProduct({$product->prod_id})'>
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
                     View Item
                 </button>
 

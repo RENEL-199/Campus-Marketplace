@@ -36,6 +36,7 @@ if ($search) {
     });
 }
 
+<<<<<<< HEAD
 /* CATEGORY FILTER (TEMP: using category_id) */
 if ($category) {
     $products = array_filter($products, function ($product) use ($category) {
@@ -51,6 +52,44 @@ if ($search) {
 >>>>>>> origin/polin
     });
 }
+=======
+/* FEATURED ITEMS */
+$featured_items = array_filter($products, function ($product) use ($category) {
+
+    if ($category) {
+        return $product->category_id == $category &&
+              ($product->category_id == 1 ||
+               $product->category_id == 2 ||
+               $product->category_id == 4);
+    }
+
+    return $product->category_id == 1 ||
+           $product->category_id == 2 ||
+           $product->category_id == 4;
+});
+
+/* FEATURED RENTALS */
+$featured_rentals = array_filter($products, function ($product) use ($category) {
+
+    if ($category) {
+        return $product->category_id == $category &&
+               $product->category_id == 5;
+    }
+
+    return $product->category_id == 5;
+});
+
+/* FEATURED SERVICES */
+$featured_services = array_filter($products, function ($product) use ($category) {
+
+    if ($category) {
+        return $product->category_id == $category &&
+               $product->category_id == 3;
+    }
+
+    return $product->category_id == 3;
+});
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
 
 /* FEATURED ITEMS */
 $featured_items = array_filter($products, function ($product) use ($category) {
@@ -117,12 +156,15 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
 
     <div>
 <<<<<<< HEAD
+<<<<<<< HEAD
         <a href="index.php"><i class="fa-solid fa-house"></i></a>
         <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
         <a href="orders.php"><i class="fa-solid fa-box"></i></a>
         <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
 =======
+=======
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
 
         <a href="index.php">
             <i class="fa-solid fa-house"></i> Home
@@ -144,11 +186,15 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
             <i class="fa-solid fa-user"></i>
         </a>
 
+<<<<<<< HEAD
 >>>>>>> origin/polin
+=======
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
     </div>
 
 </nav>
 
+<!-- HERO -->
 <section class="hero">
 
     <h2>Buy & Sell Campus Essentials</h2>
@@ -174,6 +220,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
 <div class="container">
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     <?php if ($search || $category): ?>
         <p>
             <?php if ($search): ?>
@@ -183,17 +230,42 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     <?php endif; ?>
 
     <h2 class="section-title">Categories</h2>
+=======
+    <!-- CATEGORIES -->
+    <h2 class="section-title">
+        Categories
+    </h2>
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
 
     <div class="categories">
 
-        <a class="category <?= !$category ? 'active' : '' ?>" href="index.php">All</a>
-        <a class="category <?= $category==1?'active':'' ?>" href="index.php?category=1">Electronics</a>
-        <a class="category <?= $category==2?'active':'' ?>" href="index.php?category=2">School Supplies</a>
-        <a class="category <?= $category==3?'active':'' ?>" href="index.php?category=3">Services</a>
-        <a class="category <?= $category==4?'active':'' ?>" href="index.php?category=4">Preloved</a>
+        <a class="category <?= !$category ? 'active' : '' ?>" href="index.php">
+            All
+        </a>
+
+        <a class="category <?= $category==1?'active':'' ?>" href="index.php?category=1">
+            Electronics
+        </a>
+
+        <a class="category <?= $category==2?'active':'' ?>" href="index.php?category=2">
+            School Supplies
+        </a>
+
+        <a class="category <?= $category==3?'active':'' ?>" href="index.php?category=3">
+            Services
+        </a>
+
+        <a class="category <?= $category==4?'active':'' ?>" href="index.php?category=4">
+            Preloved
+        </a>
+
+        <a class="category <?= $category==5?'active':'' ?>" href="index.php?category=5">
+            Rentals
+        </a>
 
     </div>
 
+<<<<<<< HEAD
     <h2 class="section-title">Featured Items</h2>
 =======
     <!-- CATEGORIES -->
@@ -560,7 +632,333 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
             <div id="modal-body"></div>
 
 >>>>>>> origin/polin
+=======
+    <?php if (!$category || $category == 1 || $category == 2 || $category == 4): ?>
+
+    <!-- FEATURED ITEMS HEADER -->
+    <div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+    ">
+
+        <h2 class="section-title">
+            Featured Items
+        </h2>
+
+        <div style="
+        display:flex;
+        align-items:center;
+        gap:12px;
+        ">
+
+            <div style="
+            text-align:right;
+            font-size:12px;
+            ">
+
+                <p>Did you lose something?</p>
+                <p>Check it here!</p>
+
+            </div>
+
+            <a href="lost_found.php">
+                <button style="
+                background:#8b0d04;
+                color:white;
+                border:none;
+                padding:10px 16px;
+                border-radius:8px;
+                font-weight:600;
+                cursor:pointer;
+                ">
+
+                    Lost & Found
+
+                </button>
+            </a>
+
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
         </div>
+
+    </div>
+
+    <!-- FEATURED ITEMS PRODUCTS -->
+    <div class="grid">
+
+        <?php if (empty($featured_items)): ?>
+
+            <p>No products found in this category.</p>
+
+        <?php else: ?>
+
+            <?= $view->renderProducts($featured_items); ?>
+
+        <?php endif; ?>
+
+    </div>
+
+    <?php endif; ?>
+
+    <?php if (!$category || $category == 5): ?>
+
+    <!-- FEATURED RENTALS -->
+    <h2 class="section-title">
+        Featured Rentals
+    </h2>
+
+    <div class="grid">
+
+        <?php if (empty($featured_rentals)): ?>
+
+            <p>No rentals found. Add rental products with category_id = 5.</p>
+
+        <?php else: ?>
+
+            <?php foreach ($featured_rentals as $rental): ?>
+
+                <?php
+                    $rental_desc = $rental->prod_desc ?? '';
+
+                    $rental_short_desc = strlen($rental_desc) > 18
+                        ? substr($rental_desc, 0, 18) . "......"
+                        : $rental_desc . "......";
+
+                    $rental_price = number_format((float)$rental->prod_price, 0);
+                ?>
+
+                <div class="card">
+
+                    <img src="<?= htmlspecialchars($rental->prod_image) ?>" alt="rental">
+
+                    <div class="card-content">
+
+                        <div class="card-top-row">
+
+                            <h3>
+                                <?= htmlspecialchars($rental->prod_name) ?>
+                            </h3>
+
+                            <span class="category-tag">
+                                <?= htmlspecialchars($rental->category_name) ?>
+                            </span>
+
+                        </div>
+
+                        <p class="card-description">
+                            <?= htmlspecialchars($rental_short_desc) ?>
+                            <a href="#" onclick="openRental('<?= htmlspecialchars($rental->prod_id) ?>'); return false;">
+                                read more
+                            </a>
+                        </p>
+
+                        <div class="card-price-stock-row">
+                            <div class="price">
+                                ₱<?= $rental_price ?>
+                            </div>
+
+                            <div class="stock">
+                                Stock: <?= htmlspecialchars($rental->prod_stock) ?>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="rental-view-btn"
+                            data-rental-id="<?= htmlspecialchars($rental->prod_id) ?>"
+                        >
+                            View Item
+                        </button>
+
+                    </div>
+
+                </div>
+
+            <?php endforeach; ?>
+
+        <?php endif; ?>
+
+    </div>
+
+    <?php endif; ?>
+
+    <?php if (!$category || $category == 3): ?>
+
+    <!-- FEATURED SERVICES -->
+    <h2 class="section-title">
+        Featured Services
+    </h2>
+
+    <div class="grid">
+
+        <?php if (empty($featured_services)): ?>
+
+            <p>No services found. Add service products with category_id = 3.</p>
+
+        <?php else: ?>
+
+            <?php foreach ($featured_services as $service): ?>
+
+                <?php
+                    $service_desc = $service->prod_desc ?? '';
+
+                    $service_short_desc = strlen($service_desc) > 18
+                        ? substr($service_desc, 0, 18) . "......"
+                        : $service_desc . "......";
+
+                    $service_price = number_format((float)$service->prod_price, 0);
+                ?>
+
+                <div class="card">
+
+                    <img src="<?= htmlspecialchars($service->prod_image) ?>" alt="service">
+
+                    <div class="card-content">
+
+                        <div class="card-top-row">
+
+                            <h3>
+                                <?= htmlspecialchars($service->prod_name) ?>
+                            </h3>
+
+                            <span class="category-tag">
+                                <?= htmlspecialchars($service->category_name) ?>
+                            </span>
+
+                        </div>
+
+                        <p class="card-description">
+                            <?= htmlspecialchars($service_short_desc) ?>
+                            <a href="#" onclick="openService('<?= htmlspecialchars($service->prod_id) ?>'); return false;">
+                                read more
+                            </a>
+                        </p>
+
+                        <div class="card-price-stock-row">
+                            <div class="price">
+                                ₱<?= $service_price ?>
+                            </div>
+
+                            <div class="stock">
+                                Stock: <?= htmlspecialchars($service->prod_stock) ?>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="service-view-btn"
+                            data-service-id="<?= htmlspecialchars($service->prod_id) ?>"
+                        >
+                            View Item
+                        </button>
+
+                    </div>
+
+                </div>
+
+            <?php endforeach; ?>
+
+        <?php endif; ?>
+
+    </div>
+
+    <?php endif; ?>
+
+    <!-- SELL SECTION -->
+    <div style="
+    margin-top:50px;
+    background:#ead4d1;
+    padding:20px;
+    border-radius:10px;
+
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    ">
+
+        <div style="
+        display:flex;
+        align-items:center;
+        gap:15px;
+        ">
+
+            <div style="
+            width:45px;
+            height:45px;
+
+            background:#d6b0ab;
+
+            border-radius:50%;
+
+            display:flex;
+            justify-content:center;
+            align-items:center;
+
+            color:#8b0d04;
+            ">
+
+                <i class="fa-solid fa-store"></i>
+
+            </div>
+
+            <div>
+
+                <h3 style="font-size:14px;">
+                    Got something to sell or offer?
+                </h3>
+
+                <p style="
+                font-size:12px;
+                color:#555;
+                ">
+
+                    List your items, rentals, or services and reach more students today.
+
+                </p>
+
+            </div>
+
+        </div>
+
+        <a href="seller_dashboard.php">
+
+            <button style="
+            background:#8b0d04;
+            color:white;
+
+            border:none;
+
+            padding:12px 18px;
+
+            border-radius:8px;
+
+            font-weight:600;
+            cursor:pointer;
+            ">
+
+                Sell Product
+                <i class="fa-solid fa-arrow-right"></i>
+
+            </button>
+
+        </a>
+
+    </div>
+
+    <!-- MODAL -->
+    <div id="productModal" class="modal">
+
+        <div class="modal-content">
+
+            <span class="close-btn" onclick="closeModal()">
+                &times;
+            </span>
+
+            <div id="modal-body"></div>
+
+        </div>
+
     </div>
 
 </div>
@@ -571,9 +969,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
 </footer>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 <!-- SCRIPT -->
 >>>>>>> origin/polin
+=======
+<!-- SCRIPT -->
+>>>>>>> 8e3f2036a1113166bfb4fdd24721cede41cefa07
 <script>
 
 function openProduct(id) {
