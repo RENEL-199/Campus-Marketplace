@@ -419,12 +419,17 @@ button {
     font-size: 15px;
 }
 
+
 .quantity-box input {
     width: 38px;
     height: 22px;
     margin: 0;
     padding: 2px;
     text-align: center;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    background: white;
+    font-size: 14px;
 }
 
 .quantity-box button {
@@ -640,11 +645,21 @@ nav a {
 
 <div class="form-row bottom-row">
     <div class="quantity-box">
-        <span>Quantity:</span>
-        <button type="button">−</button>
-        <input type="number" name="stock" value="1" required>
-        <button type="button">+</button>
-    </div>
+    <span>Quantity:</span>
+
+    <button type="button" id="minusQty">−</button>
+
+    <input
+        type="text"
+        name="stock"
+        id="stockInput"
+        value="1"
+        required
+        readonly
+    >
+
+    <button type="button" id="plusQty">+</button>
+</div>
 
     <select name="category">
 
@@ -852,7 +867,31 @@ rateOptions.forEach(button => {
 </script>
 
 
+<script>
 
+const minusQty = document.getElementById("minusQty");
+const plusQty = document.getElementById("plusQty");
+const stockInput = document.getElementById("stockInput");
+
+/* PLUS */
+plusQty.addEventListener("click", function () {
+
+    let current = parseInt(stockInput.value);
+
+    stockInput.value = current + 1;
+});
+
+/* MINUS */
+minusQty.addEventListener("click", function () {
+
+    let current = parseInt(stockInput.value);
+
+    if (current > 1) {
+        stockInput.value = current - 1;
+    }
+});
+
+</script>
 
 </body>
 </html>
