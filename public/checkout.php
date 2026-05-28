@@ -1,41 +1,27 @@
 <?php
 
-require_once __DIR__ . '/../app/Database.php';
-require_once __DIR__ . '/../app/auth.php';
-require_login();
+$items = [
+    [
+        "name" => "Item Name",
+        "price" => "",
+        "quantity" => "",
+        "image" => ""
+    ],
+    [
+        "name" => "Item Name",
+        "price" => "",
+        "quantity" => "",
+        "image" => ""
+    ],
+    [
+        "name" => "Item Name",
+        "price" => "",
+        "quantity" => "",
+        "image" => ""
+    ]
+];
 
-$user_id = current_user_id();
-
-$db = new Database();
-$pdo = $db->pdo;
-
-$stmt = $pdo->prepare("
-    SELECT 
-        c.product_id,
-        c.quantity,
-        p.name,
-        p.price,
-        p.image,
-        p.stock
-    FROM cart c
-    JOIN products p ON p.id = c.product_id
-    WHERE c.user_id = ?
-");
-
-$stmt->execute([$user_id]);
-$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-/* redirect if empty */
-if (!$items) {
-    header("Location: cart.php");
-    exit;
-}
-
-/* TOTAL */
-$total = 0;
-foreach ($items as $item) {
-    $total += $item['price'] * $item['quantity'];
-}
+$total = "";
 ?>
 
 <!DOCTYPE html>
@@ -43,211 +29,393 @@ foreach ($items as $item) {
 <head>
 <title>Checkout</title>
 
-<link rel="stylesheet" href="../assets/index-style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
 <style>
 
-body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #f4f7f5;
-    margin: 0;
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:#eef1ef;
 }
 
 nav {
-    background: #3A7D5D;
+    height: 58px;
+    background: #810C01;
     color: white;
-    padding: 15px 30px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    padding: 0 26px;
+}
+
+nav h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 18px;
 }
 
 nav a {
     color: white;
-    margin-left: 20px;
     text-decoration: none;
-    position: relative;
-    font-size: 0.95rem;
+    font-size: 12px;
 }
 
-nav a::after {
-    content: "";
-    position: absolute;
-    width: 0%;
-    height: 2px;
-    bottom: -3px;
-    left: 0;
-    background: #E9C46A;
-    transition: 0.3s;
+nav i {
+    margin-right: 4px;
+    font-size: 13px;
 }
 
-nav a:hover::after {
-    width: 100%;
+/* MAIN CONTAINER */
+
+.checkout-container{
+    width:1060px;
+    min-height:560px;
+    background:white;
+    margin:38px auto;
+    border-radius:24px;
+    padding:44px 62px 28px;
+    box-shadow:0 2px 5px rgba(0,0,0,0.2);
 }
 
-.checkout-wrapper {
-    max-width: 1100px;
-    margin: 40px auto;
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 25px;
-    padding: 0 15px;
+/* TOP CONTENT */
+
+.checkout-content{
+    display:flex;
+    gap:38px;
 }
 
-.checkout-box {
-    background: white;
-    border-radius: 16px;
-    padding: 25px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+/* LEFT SIDE */
+
+.items-list{
+    width:470px;
 }
 
-.section-title {
-    font-size: 1.3rem;
-    margin-bottom: 15px;
-    color: #1f2937;
+.checkout-item{
+    background:#f1f4f2;
+    height:96px;
+    border-radius:24px;
+    display:flex;
+    align-items:center;
+    padding:16px;
+    margin-bottom:30px;
+    box-shadow:0 2px 5px rgba(0,0,0,0.2);
+}
+
+.img-box{
+    width:68px;
+    height:60px;
+    background:#d9d9d9;
+    border-radius:12px;
+}
+
+.item-info{
+    margin-left:22px;
+}
+
+.item-info h3{
+    margin:0;
+    font-size:23px;
+    font-weight:500;
+}
+
+.item-info p{
+    margin:0;
+    font-size:14px;
+}
+
+/* RIGHT SIDE */
+
+.info-box{
+    width:410px;
+    height:345px;
+    background:#f1f4f2;
+    border-radius:0 24px 24px 24px;
+    padding:18px 22px;
+    box-shadow:0 2px 5px rgba(0,0,0,0.2);
+}
+
+.info-box h2{
+    margin:0 0 14px;
+    font-size:22px;
+    font-weight:500;
 }
 
 /* INPUTS */
-input, textarea {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 12px;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    outline: none;
+
+.info-box input{
+    width:258px;
+    height:33px;
+    border:1px solid #999;
+    border-radius:8px;
+    margin-bottom:11px;
+    padding:0 10px;
+    font-size:14px;
 }
 
-input:focus, textarea:focus {
-    border-color: #3A7D5D;
-    box-shadow: 0 0 0 3px rgba(58,125,93,0.1);
+/* PAYMENT */
+
+.payment-title{
+    margin-top:48px;
+    font-size:22px;
 }
 
+.payment-buttons{
+    display:flex;
+    gap:14px;
+    margin-top:10px;
+}
 
-.summary-box {
+.payment-buttons button{
+    background:white;
+    border:1px solid #b64d42;
+    border-radius:10px;
+    padding:10px 14px;
+    color:#777;
+    cursor:pointer;
+}
+
+/* BOTTOM */
+
+.bottom-row{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:150px;
+    margin-top:78px;
+}
+
+.total{
+    font-size:25px;
+    font-weight:bold;
+}
+
+.place-btn{
+    background:#990b00;
+    color:white;
+    border:none;
+    border-radius:14px;
+    padding:12px 28px;
+    font-size:17px;
+    cursor:pointer;
+}
+
+.receipt-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+.receipt-box {
+    width: 390px;
     background: white;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.06);
-    height: fit-content;
-    position: sticky;
-    top: 20px;
+    border-radius: 22px;
+    padding: 24px 30px;
+    position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
-
-.order-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid #eee;
-    font-size: 0.95rem;
+.close-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 25px;
+    cursor: pointer;
 }
 
-.order-item span:last-child {
-    font-weight: bold;
-    color: #3A7D5D;
+.receipt-section {
+    background: #f1f4f2;
+    border-radius: 0 20px 20px 20px;
+    padding: 15px;
+    margin-top: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-/* TOTAL */
-.total-box {
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 2px solid #eee;
-    font-size: 1.3rem;
-    font-weight: bold;
-    text-align: right;
+.receipt-section p {
+    margin: 7px 0;
+    font-size: 14px;
 }
-
 
 .confirm-btn {
     width: 100%;
-    margin-top: 15px;
-    padding: 14px;
-    background: linear-gradient(135deg, #3A7D5D, #2F684C);
+    margin-top: 18px;
+    background: #810C01;
     color: white;
     border: none;
     border-radius: 12px;
-    font-size: 1.05rem;
+    padding: 12px;
     cursor: pointer;
-    transition: 0.2s;
-}
-
-.confirm-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(58,125,93,0.3);
-}
-
-/* =========================
-   RESPONSIVE
-========================= */
-@media (max-width: 800px) {
-    .checkout-wrapper {
-        grid-template-columns: 1fr;
-    }
 }
 
 </style>
-
 </head>
 
 <body>
 
 <nav>
-    <h1>Campus Market</h1>
-    <div>
-  <a href="index.php"><i class="fa-solid fa-house"></i></a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i></a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
+    <h1>IskoHub</h1>
+
+    <div class="nav-links">
+        <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+        <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
-        
     </div>
 </nav>
 
-<div class="checkout-wrapper">
+<div class="checkout-container">
 
-    <!-- LEFT SIDE -->
-    <div class="checkout-box">
+    <div class="checkout-content">
 
-        <h2 class="section-title">Checkout Details</h2>
+        <!-- LEFT -->
 
-        <form method="POST" action="place_order.php">
+        <div class="items-list">
 
-            <input type="text" name="fullname" placeholder="Full Name" required>
-            <input type="text" name="address" placeholder="Address" required>
-            <input type="text" name="phone" placeholder="Phone Number" required>
+            <?php foreach($items as $item): ?>
 
-            <button class="confirm-btn">Confirm Order</button>
+            <div class="checkout-item">
+
+                <div class="img-box"></div>
+
+                <div class="item-info">
+                    <h3>Item Name</h3>
+                    <p>Price:</p>
+                    <p>Quantity:</p>
+                </div>
+
+            </div>
+
+            <?php endforeach; ?>
+
+        </div>
+
+        <!-- RIGHT -->
+
+        <div class="info-box">
+
+            <h2>Information:</h2>
+
+            <input type="text" id="receiverName" placeholder="Receiving Person">
+
+            <input type="text" id="receiverAddress" placeholder="Receiving Address">
+
+            <input type="text" id="receiverContact" placeholder="Contact Number">
+
+            <div class="payment-title">
+                Payment Method
+            </div>
+
+            <div class="payment-buttons">
+
+                <button type="button" onclick="selectPayment('Cash on Delivery')">
+                    Cash on Delivery
+                </button>
+
+                <button type="button" onclick="selectPayment('Gcash')">
+                    Gcash
+                </button>
+
+            </div>
+
+        </div>
 
     </div>
 
-    <!-- RIGHT SIDE -->
-    <div class="summary-box">
+    <div class="bottom-row">
 
-        <h3>Order Summary</h3>
-
-        <?php foreach ($items as $item): ?>
-
-            <div class="order-item">
-                <span><?= htmlspecialchars($item['name']) ?> (x<?= $item['quantity'] ?>)</span>
-                <span>₱<?= $item['price'] * $item['quantity'] ?></span>
-            </div>
-
-            <input type="hidden" name="product_ids[]" value="<?= $item['product_id'] ?>">
-            <input type="hidden" name="quantities[]" value="<?= $item['quantity'] ?>">
-
-        <?php endforeach; ?>
-
-        <div class="total-box">
-            Total: ₱<?= $total ?>
+        <div class="total">
+            Total:
         </div>
 
-        <input type="hidden" name="total" value="<?= $total ?>">
-
-        </form>
+        <button class="place-btn" type="button" onclick="openReceiptModal()">
+            PLACE ORDER
+        </button>
 
     </div>
 
 </div>
+
+<div class="receipt-modal" id="receiptModal">
+    <div class="receipt-box">
+
+        <span class="close-modal" onclick="closeReceiptModal()">×</span>
+
+        <h2 style="text-align:center;">Receipt</h2>
+
+        <div class="receipt-section">
+            <h3>Receiver Information</h3>
+            <p><b>Name:</b> <span id="receiptName"></span></p>
+            <p><b>Address:</b> <span id="receiptAddress"></span></p>
+            <p><b>Contact:</b> <span id="receiptContact"></span></p>
+            <p><b>Payment:</b> <span id="receiptPayment"></span></p>
+        </div>
+
+        <div class="receipt-section">
+            <h3>Order Summary</h3>
+            <p><b>Item:</b> Item Name</p>
+            <p><b>Price:</b></p>
+            <p><b>Quantity:</b></p>
+            <p><b>Total:</b> <span id="receiptTotal"></span></p>
+        </div>
+
+        <button class="confirm-btn" onclick="window.location.href='orders.php'">
+            Confirm Order
+        </button>
+
+    </div>
+</div>
+
+<script>
+let selectedPayment = "";
+
+function selectPayment(payment) {
+    selectedPayment = payment;
+    alert(payment + " selected");
+}
+
+function openReceiptModal() {
+    document.getElementById("receiptName").innerText =
+        document.getElementById("receiverName").value;
+
+    document.getElementById("receiptAddress").innerText =
+        document.getElementById("receiverAddress").value;
+
+    document.getElementById("receiptContact").innerText =
+        document.getElementById("receiverContact").value;
+
+    document.getElementById("receiptPayment").innerText =
+        selectedPayment;
+
+    document.getElementById("receiptTotal").innerText =
+        "₱0.00";
+
+    document.getElementById("receiptModal").style.display =
+        "flex";
+}
+
+function closeReceiptModal() {
+    document.getElementById("receiptModal").style.display =
+        "none";
+}
+
+
+
+</script>
 
 </body>
 </html>

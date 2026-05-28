@@ -1,83 +1,128 @@
 <?php
-require_once __DIR__ . '/../app/Database.php';
-require_once __DIR__ . '/../app/auth.php';
-require_login();
-
-$user_id = current_user_id();
-
-$db = new Database();
-$pdo = $db->pdo;
-
-$stmt = $pdo->prepare("
-    SELECT * FROM orders
-    WHERE user_id=?
-    ORDER BY created_at DESC
-");
-
-$stmt->execute([$user_id]);
-$orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// temporary orders only, no database
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-<title>Orders</title>
+<title>Order History</title>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
 <style>
-/* RESET */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
-/* BASE */
 body {
-    font-family: 'Segoe UI', sans-serif;
-    background: #f4f7f5;
-    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f3f7f5;
+    color: #111;
 }
 
-/* NAV */
 nav {
-    background: #3A7D5D;
+    height: 58px;
+    background: #810C01;
     color: white;
-    padding: 15px 30px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    padding: 0 26px;
+}
+
+nav h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 18px;
 }
 
 nav a {
     color: white;
-    margin-left: 20px;
     text-decoration: none;
+    font-size: 12px;
 }
 
-/* CONTAINER */
-.container {
-    max-width: 800px;
-    margin: 40px auto;
+nav i {
+    margin-right: 4px;
+    font-size: 13px;
 }
 
-/* ORDER CARD */
-.order {
+nav a::after {
+    content: "";
+    position: absolute;
+    width: 0%;
+    height: 2px;
+    bottom: -3px;
+    left: 0;
+    background: var(--accent);
+    transition: 0.3s;
+}
+nav a:hover::after {
+    width: 100%;
+}
+
+.history-container {
+    width: 1035px;
+    min-height: 580px;
     background: white;
-    padding: 18px;
-    margin-bottom: 15px;
-    border-radius: 12px;
-    box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+    margin: 34px auto;
+    border-radius: 24px;
+    padding: 30px 64px;
+    box-shadow: 0 3px 4px rgba(0,0,0,0.25);
+}
+
+.history-container h2 {
+    font-size: 34px;
+    margin-bottom: 26px;
+}
+
+.order {
+    height: 74px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    margin-bottom: 16px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    padding: 6px;
+}
+
+.order-img {
+    width: 68px;
+    height: 60px;
+    background: #d9d9d9;
+    border-radius: 10px;
+    margin-right: 14px;
+}
+
+.order-info {
+    flex: 1;
 }
 
 .order-info h3 {
-    margin-bottom: 5px;
+    font-size: 23px;
+    margin-bottom: 2px;
 }
 
-.order a {
-    color: #3A7D5D;
+.order-info p {
+    font-size: 14px;
+    margin: 0;
+}
+
+.view-btn {
+    background: #970d03;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 46px;
+    font-size: 18px;
     font-weight: bold;
     cursor: pointer;
 }
@@ -95,56 +140,10 @@ nav a {
 .modal-content {
     position: relative;
     background: white;
-    width: 320px;
-    padding: 20px;
+    width: 340px;
+    padding: 22px;
     border-radius: 12px;
     font-family: 'Courier New', monospace;
-    animation: pop 0.2s ease;
-}
-
-@keyframes pop {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-/* RECEIPT STYLE */
-.title {
-    text-align: center;
-    font-weight: bold;
-}
-
-hr {
-    border: none;
-    border-top: 1px dashed #999;
-    margin: 10px 0;
-}
-
-.item {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    margin: 5px 0;
-}
-
-.total {
-    display: flex;
-    justify-content: space-between;
-    font-weight: bold;
-    margin-top: 10px;
-}
-
-.close {
-    float: right;
-    cursor: pointer;
-}
-
-/* BUTTON */
-.view-btn {
-    background: none;
-    border: none;
-    color: #3A7D5D;
-    font-weight: bold;
-    cursor: pointer;
 }
 
 .close {
@@ -155,43 +154,28 @@ hr {
     cursor: pointer;
     font-weight: bold;
 }
-
 </style>
 </head>
 
 <body>
 
 <nav>
-    <h1>Campus Market</h1>
-    <div>
-  <a href="index.php"><i class="fa-solid fa-house"></i></a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i></a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
+    <h1>IskoHub</h1>
+
+    <div class="nav-links">
+        <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+        <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
         <a href="account.php"><i class="fa-solid fa-user"></i></a>
-        
     </div>
 </nav>
 
-<div class="container">
+<div class="history-container">
 
-<h2>Order History</h2>
+    <h2>Order History</h2>
 
-<?php foreach ($orders as $o): ?>
-<div class="order">
-
-    <div class="order-info">
-        <h3>Order #<?= $o['id'] ?></h3>
-        <p><?= $o['created_at'] ?></p>
-        <p>₱<?= $o['total'] ?></p>
-    </div>
-
-    <button class="view-btn" onclick="openReceipt(<?= $o['id'] ?>)">
-        View Receipt
-    </button>
-
-</div>
-<?php endforeach; ?>
+<div id="ordersContainer"></div>
 
 </div>
 
@@ -208,19 +192,93 @@ hr {
 </div>
 
 <script>
-function openReceipt(id) {
-    document.getElementById("receiptModal").style.display = "flex";
 
-    fetch("receipt_modal.php?id=" + id)
-        .then(res => res.text())
-        .then(data => {
-            document.getElementById("receiptContent").innerHTML = data;
-        });
+let orders =
+    JSON.parse(localStorage.getItem("orders")) || [];
+
+let container =
+    document.getElementById("ordersContainer");
+
+if (orders.length === 0) {
+
+    container.innerHTML =
+        "<p>No orders yet.</p>";
+
+} else {
+
+    orders.reverse().forEach((order, index) => {
+
+        container.innerHTML += `
+
+        <div class="order">
+
+            <div class="order-img"></div>
+
+            <div class="order-info">
+
+                <h3>Order No. ${order.orderNo}</h3>
+
+                <p>Date: ${order.date}</p>
+
+                <p>Total: ₱${order.total}</p>
+
+            </div>
+
+            <button class="view-btn"
+                onclick="openReceipt(${index})">
+
+                Check Receipt
+
+            </button>
+
+        </div>
+
+        `;
+    });
+}
+
+function openReceipt(index) {
+
+    let order = orders[index];
+
+    document.getElementById("receiptContent").innerHTML = `
+
+        <h2 style="text-align:center;margin-bottom:12px;">
+            Receipt
+        </h2>
+
+        <hr>
+
+        <p><b>Order No:</b>
+            ${order.orderNo}
+        </p>
+
+        <p><b>Date:</b>
+            ${order.date}
+        </p>
+
+        <p><b>Total:</b>
+            ₱${order.total}
+        </p>
+
+        <hr>
+
+        <p>
+            Order placed successfully.
+        </p>
+
+    `;
+
+    document.getElementById("receiptModal").style.display =
+        "flex";
 }
 
 function closeModal() {
-    document.getElementById("receiptModal").style.display = "none";
+
+    document.getElementById("receiptModal").style.display =
+        "none";
 }
+
 </script>
 
 </body>

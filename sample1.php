@@ -18,9 +18,9 @@
         <a href="#">Cart</a>
         <a href="#">Orders</a>
         <a href="#">Sell</a>
-        <a href="#">Account</a>
+        <a href="#">LEA</a>
     </div>
-</nav>
+</nav> 
 
 <!-- HERO -->
 <section class="hero">
