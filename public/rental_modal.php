@@ -7,130 +7,91 @@ $repo = new ProductRepository();
 $id = $_GET['id'] ?? null;
 
 if (!$id) {
-    echo "Invalid rental ID";
+    echo "<p>Invalid rental ID</p>";
     exit;
 }
 
 $rental = null;
 
 foreach ($repo->getAll() as $p) {
-    if ($p->prod_id == $id) {
+    if ((int)$p->prod_id === (int)$id) {
         $rental = $p;
         break;
     }
 }
 
 if (!$rental) {
-    echo "Rental item not found";
+    echo "<p>Rental not found</p>";
     exit;
 }
+
 ?>
 
 <div class="rental-modal-layout">
 
+    <!-- LEFT VIEW -->
     <div class="rental-viewer" id="rentalViewer">
 
         <div class="rental-image-box">
-            <img src="<?= htmlspecialchars($rental->prod_image) ?>" alt="<?= htmlspecialchars($rental->prod_name) ?>">
+            <img src="<?= htmlspecialchars($rental->prod_image) ?>"
+                 alt="<?= htmlspecialchars($rental->prod_name) ?>">
         </div>
 
         <div class="rental-info">
 
-            <div class="rental-title-row">
-                <h2><?= htmlspecialchars($rental->prod_name) ?></h2>
+            <h2><?= htmlspecialchars($rental->prod_name) ?></h2>
 
-                <div>
-                    <span class="rental-tag">Rentals</span>
-                </div>
-            </div>
+            <span class="rental-tag">Rental</span>
 
             <div class="rental-price">
-                ₱ <?= number_format($rental->prod_price, 0) ?><span>/day</span>
+                ₱<?= number_format($rental->prod_price, 0) ?>
             </div>
 
-            <p class="rental-owner">
-                <strong>Owner:</strong> Sam Renly
+            <p class="rental-desc">
+                <?= nl2br(htmlspecialchars($rental->prod_desc)) ?>
             </p>
-
-            <p class="rental-stock">
-                <strong>Available:</strong> <?= htmlspecialchars($rental->prod_stock) ?>
-            </p>
-
-            <div class="product-desc-box">
-                <h3>Description</h3>
-                <p><?= nl2br(htmlspecialchars($rental->prod_desc)) ?></p>
-            </div>
-
-            <button type="button" class="rent-btn" id="rentThisItemBtn">
-                Rent this Item
-            </button>
 
         </div>
+        
 
     </div>
 
-    <div class="borrow-form-box borrow-form-centered" id="borrowFormBox">
+    <!-- RIGHT FORM -->
+    <div class="rental-form-box" id="borrowFormBox" style="display:none;">
 
         <h3>Borrow Form</h3>
 
-        <form method="POST" action="borrow_request.php">
+        <form method="POST" action="rental_request.php">
 
-            <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
+            <input type="hidden" name="product_id"
+                   value="<?= htmlspecialchars($rental->prod_id) ?>">
 
-            <div class="borrow-details-box">
-                <h4>Details</h4>
-                <p>Item Name: <?= htmlspecialchars($rental->prod_name) ?></p>
-                <p>Price: ₱<?= number_format($rental->prod_price, 0) ?>/day</p>
-                <p>Seller: Sam Renly</p>
-            </div>
+            <label>Full Name</label>
+            <input type="text" name="full_name" required>
 
-            <div class="borrow-quantity-row">
-                <label>Quantity:</label>
+            <label>Student No.</label>
+            <input type="text" name="student_no" required>
 
-                <button type="button" class="borrow-qty-btn" id="borrowMinusBtn">
-                    −
-                </button>
+            <label>Quantity</label>
 
-                <input 
-                    type="number" 
-                    name="quantity" 
-                    id="borrowQty" 
-                    value="1" 
-                    min="1" 
-                    max="<?= htmlspecialchars($rental->prod_stock) ?>"
-                >
+            <div class="qty-box">
+                <button type="button" id="borrowMinusBtn">-</button>
 
-                <button 
-                    type="button" 
-                    class="borrow-qty-btn" 
-                    id="borrowPlusBtn"
-                    data-max-stock="<?= htmlspecialchars($rental->prod_stock) ?>"
-                >
+                <input type="number"
+                       id="borrowQty"
+                       name="quantity"
+                       value="1"
+                       min="1"
+                       max="<?= (int)$rental->prod_stock ?>">
+
+                <button type="button"
+                        id="borrowPlusBtn"
+                        data-max-stock="<?= (int)$rental->prod_stock ?>">
                     +
                 </button>
             </div>
 
-            <div class="date-row">
-                <label>From:</label>
-                <input type="date" name="date_from" required>
-
-                <label>To</label>
-                <input type="date" name="date_to" required>
-            </div>
-
-            <h4>Borrower Information</h4>
-
-            <input type="text" name="full_name" placeholder="Full Name" required>
-            <input type="text" name="student_no" placeholder="Student No." required>
-
-            <div class="borrow-two-inputs">
-                <input type="number" name="age" placeholder="Age" required>
-                <input type="text" name="gender" placeholder="Gender" required>
-            </div>
-
-            <button type="submit" class="confirm-rent-btn">
-                Confirm Request
-            </button>
+            <button type="submit">Confirm Rent</button>
 
         </form>
 
