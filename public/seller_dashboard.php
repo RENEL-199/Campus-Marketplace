@@ -17,6 +17,7 @@ $repo = new ProductRepository();
 /* =========================
    DELETE PRODUCT
 ========================= */
+<<<<<<< HEAD
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
 
     if (empty($_POST["selected_product_id"])) {
@@ -32,12 +33,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
     ");
 
     $stmt->execute([$delete_id, $user_id]);
+=======
+if (isset($_POST['delete_id'])) {
+
+    $stmt = $pdo->prepare("
+        DELETE FROM products 
+        WHERE prod_id = ? AND user_id = ?
+    ");
+
+    $stmt->execute([$_POST['delete_id'], $user_id]);
+>>>>>>> origin/polin
 
     header("Location: seller_dashboard.php");
     exit;
 }
 
 /* =========================
+<<<<<<< HEAD
    UPDATE PRODUCT
 ========================= */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "update") {
@@ -48,6 +60,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
     }
 
     $update_id = (int) $_POST["selected_product_id"];
+=======
+   ADD PRODUCT
+========================= */
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["name"])) {
+
+    $name = $_POST["name"];
+    $desc = $_POST["description"];
+    $price = $_POST["price"];
+    $category_id = $_POST["category"];
+    $stock = (int) $_POST["stock"];
+>>>>>>> origin/polin
 
     $name = trim($_POST["name"]);
     $desc = trim($_POST["description"]);
@@ -199,9 +222,13 @@ $stmt->execute([$location, $rate_type, $last_id, $user_id]);
 /* =========================
    GET PRODUCTS
 ========================= */
+<<<<<<< HEAD
 $stmt = $pdo->prepare("SELECT * FROM products WHERE user_id = ?");
 $stmt->execute([$user_id]);
 $products = $stmt->fetchAll(PDO::FETCH_OBJ);
+=======
+$products = $repo->getByUser($user_id);
+>>>>>>> origin/polin
 
 /* =========================
    STATS
@@ -229,6 +256,7 @@ foreach ($products as $p) {
 <style>
 
 /* PAGE */
+<<<<<<< HEAD
 body {
     margin: 0;
     background: #f3f5f2;
@@ -240,6 +268,27 @@ body {
     max-width: 1000px;
     margin: 12px auto 30px;
     padding: 0 20px;
+=======
+.dashboard {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 20px;
+}
+
+/* GRID */
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 20px;
+}
+
+/* CARD */
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+>>>>>>> origin/polin
 }
 
 /* STATS */
@@ -261,6 +310,7 @@ body {
 }
 
 .stat h2 {
+<<<<<<< HEAD
     margin: 0;
     color: #000;
     font-size: 24px;
@@ -269,6 +319,18 @@ body {
 
 .stat p {
     display: inline;
+=======
+    color: #3A7D5D;
+}
+
+/* PRODUCT LIST */
+.product {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+>>>>>>> origin/polin
 }
 
 .stat h2 {
@@ -298,6 +360,7 @@ body {
     height: fit-content;
 }
 
+<<<<<<< HEAD
 .card h2 {
     margin: 0 0 8px;
     font-size: 21px;
@@ -310,6 +373,38 @@ body {
     height: 185px;
     border: 1px dashed #b56b62;
     border-radius: 24px;
+=======
+button {
+    width: 100%;
+    padding: 12px;
+    background: #3A7D5D;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+/* NAV */
+nav {
+    background: #3A7D5D;
+    color: white;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+}
+
+nav a {
+    color: white;
+    margin-left: 15px;
+    text-decoration: none;
+}
+
+.image-upload {
+    width: 100%;
+    height: 220px;
+    border: 2px dashed #A7D7C5;
+    border-radius: 12px;
+>>>>>>> origin/polin
     display: flex;
     align-items: center;
     justify-content: center;
@@ -332,6 +427,7 @@ body {
 }
 
 .image-upload span {
+<<<<<<< HEAD
     color: transparent;
 }
 
@@ -564,6 +660,12 @@ nav a {
     border: 2px solid #991000;
     background: #fff3f1;
 }
+=======
+    position: absolute;
+    color: #888;
+}
+
+>>>>>>> origin/polin
 </style>
 </head>
 
@@ -616,16 +718,28 @@ nav a {
         <span id="uploadText">Click to upload image</span>
     </label>
 
+<<<<<<< HEAD
     <div class="name-desc-box">
         <input type="text" name="name" placeholder="Product Name" required>
         <textarea name="description" placeholder="Description" required></textarea>
     </div>
 </div>
+=======
+    <label class="image-upload">
+        <input type="file" name="image" id="imageInput" required>
+        <img id="preview">
+        <span id="uploadText">Click to upload image</span>
+    </label>
+>>>>>>> origin/polin
 
 
 
+<<<<<<< HEAD
 <label class="small-label">If Applicable:</label>
 <input type="text" name="location" placeholder="Location">
+=======
+    <input type="number" name="price" placeholder="Price" required>
+>>>>>>> origin/polin
 
 <div class="form-row">
     <input type="number" name="price" placeholder="Price" required>
@@ -662,6 +776,15 @@ nav a {
 </div>
 
     <select name="category">
+<<<<<<< HEAD
+=======
+        <option value="1">Electronics</option>
+        <option value="2">School Supplies</option>
+        <option value="3">Services</option>
+        <option value="4">Preloved</option>
+        <option value="5">Others</option>
+    </select>
+>>>>>>> origin/polin
 
         <option value="1">Electronics</option>
         <option value="2">School Supplies</option>
@@ -722,6 +845,14 @@ nav a {
         ₱<?= $p->prod_price ?> | Stock: <?= $p->prod_stock ?>
     </div>
 
+<<<<<<< HEAD
+=======
+    <form method="POST" onsubmit="return confirm('Delete this product?')">
+        <input type="hidden" name="delete_id" value="<?= $p->prod_id ?>">
+        <button class="delete-btn">X</button>
+    </form>
+
+>>>>>>> origin/polin
 </div>
 
 <?php endforeach; ?>
