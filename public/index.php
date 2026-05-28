@@ -237,6 +237,183 @@ window.onclick = function(event) {
     }
 };
 
+document.addEventListener("click", function(event) {
+
+    const productMinusBtn = event.target.closest(".product-minus-btn");
+    const productPlusBtn = event.target.closest(".product-plus-btn");
+
+    if (productMinusBtn) {
+        const qtyInput = document.getElementById("modalQuantity");
+
+        if (qtyInput) {
+            let value = parseInt(qtyInput.value) || 1;
+
+            if (value > 1) {
+                qtyInput.value = value - 1;
+            }
+        }
+    }
+
+    if (productPlusBtn) {
+        const qtyInput = document.getElementById("modalQuantity");
+        const maxStock = parseInt(productPlusBtn.getAttribute("data-max-stock"));
+
+        if (qtyInput) {
+            let value = parseInt(qtyInput.value) || 1;
+
+            if (value < maxStock) {
+                qtyInput.value = value + 1;
+            } else {
+                qtyInput.value = maxStock;
+            }
+        }
+    }
+
+});
+
+document.addEventListener("input", function(event) {
+
+    if (event.target.classList.contains("product-qty-input")) {
+        const qtyInput = event.target;
+        const maxStock = parseInt(qtyInput.getAttribute("max"));
+        let value = parseInt(qtyInput.value) || 1;
+
+        if (value < 1) {
+            qtyInput.value = 1;
+        }
+
+        if (value > maxStock) {
+            qtyInput.value = maxStock;
+        }
+    }
+
+});
+
+document.addEventListener("click", function(event) {
+
+    const rentBtn = event.target.closest("#rentThisItemBtn");
+
+    if (rentBtn) {
+        const viewer = document.getElementById("rentalViewer");
+        const form = document.getElementById("borrowFormBox");
+        const layout = document.querySelector(".rental-modal-layout");
+
+        if (viewer && form && layout) {
+            viewer.style.display = "none";
+            form.style.display = "block";
+            layout.style.display = "block";
+        }
+    }
+
+    const minusBtn = event.target.closest("#borrowMinusBtn");
+
+    if (minusBtn) {
+        const qty = document.getElementById("borrowQty");
+        let value = parseInt(qty.value) || 1;
+
+        if (value > 1) {
+            qty.value = value - 1;
+        }
+    }
+
+    const plusBtn = event.target.closest("#borrowPlusBtn");
+
+    if (plusBtn) {
+        const qty = document.getElementById("borrowQty");
+        const maxStock = parseInt(plusBtn.getAttribute("data-max-stock"));
+        let value = parseInt(qty.value) || 1;
+
+        if (value < maxStock) {
+            qty.value = value + 1;
+        } else {
+            qty.value = maxStock;
+        }
+    }
+
+});
+
+document.addEventListener("click", function(event) {
+
+    const availServiceBtn = event.target.closest("#availServiceBtn");
+
+    if (availServiceBtn) {
+        const viewer = document.getElementById("serviceViewer");
+        const form = document.getElementById("serviceFormBox");
+        const layout = document.querySelector(".service-modal-layout");
+
+        if (viewer && form && layout) {
+            viewer.style.display = "none";
+            form.style.display = "block";
+            layout.style.display = "block";
+        }
+    }
+
+    const serviceMinusBtn = event.target.closest(".service-minus-btn");
+    const servicePlusBtn = event.target.closest(".service-plus-btn");
+
+    if (serviceMinusBtn) {
+        const qtyInput = document.getElementById("serviceQty");
+
+        if (qtyInput) {
+            let value = parseInt(qtyInput.value) || 1;
+
+            if (value > 1) {
+                qtyInput.value = value - 1;
+            }
+        }
+    }
+
+    if (servicePlusBtn) {
+        const qtyInput = document.getElementById("serviceQty");
+
+        if (qtyInput) {
+            let value = parseInt(qtyInput.value) || 1;
+            qtyInput.value = value + 1;
+        }
+    }
+
+});
+
+document.addEventListener("input", function(event) {
+
+    if (event.target.classList.contains("service-qty-input")) {
+        const qtyInput = event.target;
+        let value = parseInt(qtyInput.value) || 1;
+
+        if (value < 1) {
+            qtyInput.value = 1;
+        }
+    }
+
+});
+
+document.addEventListener("change", function(event) {
+
+    const fileInput = event.target.closest("#serviceFileInput");
+
+    if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+
+        const previewImage = document.getElementById("previewImage");
+        const uploadText = document.getElementById("uploadText");
+
+        if (!previewImage || !uploadText) {
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            previewImage.style.display = "block";
+            uploadText.style.display = "none";
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+});
+
 </script>
 
 </body>
