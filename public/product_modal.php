@@ -4,49 +4,50 @@ require_once __DIR__ . '/../app/ProductRepository.php';
 
 $repo = new ProductRepository();
 
-$id = $_GET['id'] ?? null;
+function public_image_path(?string $path): string {
+    $path = trim((string)$path);
 
-if (!$id) {
+    if ($path === '') {
+        return 'uploads/default.png';
+    }
+
+    $path = str_replace('\\', '/', $path);
+
+    if (preg_match('/^https?:\/\//i', $path)) {
+        return $path;
+    }
+
+    $pos = strpos($path, 'uploads/');
+    if ($pos !== false) {
+        return substr($path, $pos);
+    }
+
+    return 'uploads/' . basename($path);
+}
+
+
+$id = (int)($_GET['id'] ?? 0);
+
+if ($id <= 0) {
     echo "<p>Invalid product ID</p>";
     exit;
 }
 
-$product = null;
-
-foreach ($repo->getAll() as $p) {
-    if ((int)$p->prod_id === (int)$id) {
-        $product = $p;
-        break;
-    }
-}
+$product = $repo->getById($id);
 
 if (!$product) {
     echo "<p>Product not found</p>";
     exit;
 }
 
-$category_name = "Category " . $product->category_id;
-
-if ($product->category_id == 1) {
-    $category_name = "Electronics";
-} elseif ($product->category_id == 2) {
-    $category_name = "School Supplies";
-} elseif ($product->category_id == 3) {
-    $category_name = "Services";
-} elseif ($product->category_id == 4) {
-    $category_name = "Preloved";
-} elseif ($product->category_id == 5) {
-    $category_name = "Rentals";
-}
-
+$category_name = $product->category_name ?: ("Category " . $product->category_id);
 $stock = (int)$product->prod_stock;
-?>
-
-<div class="product-page">
+$imagePath = public_image_path($product->prod_image);
+?><div class="product-page">
 
     <div class="product-image">
         <img 
-            src="<?= htmlspecialchars($product->prod_image) ?>" 
+            src="<?= htmlspecialchars($imagePath) ?>" 
             alt="<?= htmlspecialchars($product->prod_name) ?>"
         >
     </div>

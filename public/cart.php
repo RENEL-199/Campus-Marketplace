@@ -9,16 +9,67 @@ $user_id = current_user_id();
 $db = new Database();
 $pdo = $db->pdo;
 
+function saveServiceFiles(array $files): array {
+    $savedNames = [];
+
+    if (empty($files['name']) || !is_array($files['name'])) {
+        return $savedNames;
+    }
+
+    $uploadDir = __DIR__ . '/uploads/services/';
+
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'ppt', 'pptx'];
+
+    foreach ($files['name'] as $index => $originalName) {
+        if (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            continue;
+        }
+
+        $originalName = basename((string)$originalName);
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if (!in_array($extension, $allowedExtensions, true)) {
+            continue;
+        }
+
+        $safeBase = preg_replace('/[^A-Za-z0-9_\.-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+        $storedName = 'service_' . time() . '_' . bin2hex(random_bytes(4)) . '_' . $safeBase . '.' . $extension;
+        $targetPath = $uploadDir . $storedName;
+
+        if (move_uploaded_file($files['tmp_name'][$index], $targetPath)) {
+            $savedNames[] = $originalName;
+        }
+    }
+
+    return $savedNames;
+}
+
+function decodeServiceFiles($value): array {
+    if (empty($value)) {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+
+    if (is_array($decoded)) {
+        return array_values(array_filter($decoded, fn($name) => trim((string)$name) !== ''));
+    }
+
+    return array_values(array_filter(array_map('trim', explode(',', (string)$value))));
+}
 
 /* =========================
-   ADD TO CART (PRODUCT + RENTAL)
+   ADD TO CART
 ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
 
     $product_id = (int)$_POST['product_id'];
-    $quantity   = (int)($_POST['quantity'] ?? 1);
+    $quantity   = max(1, (int)($_POST['quantity'] ?? 1));
 
-    // rental fields (optional)
     $date_from  = $_POST['date_from'] ?? null;
     $date_to    = $_POST['date_to'] ?? null;
     $full_name  = $_POST['full_name'] ?? null;
@@ -26,9 +77,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
     $age        = $_POST['age'] ?? null;
     $gender     = $_POST['gender'] ?? null;
 
-    // check existing cart item
+    $print_type = $_POST['print_type'] ?? null;
+    $serviceFiles = [];
+
+    $productStmt = $pdo->prepare("SELECT category_id, prod_stock FROM products WHERE prod_id = ? LIMIT 1");
+    $productStmt->execute([$product_id]);
+    $productInfo = $productStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$productInfo) {
+        header("Location: cart.php?cart_error=not_found");
+        exit;
+    }
+
+    $categoryId = (int)($productInfo['category_id'] ?? 0);
+    $isService = $categoryId === 3 || isset($_POST['is_service']);
+
+    if ($isService && isset($_FILES['service_files'])) {
+        $serviceFiles = saveServiceFiles($_FILES['service_files']);
+        $quantity = max(1, count($serviceFiles));
+        $date_from = null;
+        $date_to = null;
+        $age = null;
+        $gender = null;
+    }
+
+    $stock = (int)($productInfo['prod_stock'] ?? 0);
+
+    if (!$isService && $stock > 0) {
+        $existingQtyStmt = $pdo->prepare("
+            SELECT quantity 
+            FROM cart_items 
+            WHERE user_id = ? AND product_id = ?
+        ");
+        $existingQtyStmt->execute([$user_id, $product_id]);
+        $existingQty = (int)($existingQtyStmt->fetchColumn() ?: 0);
+
+        if (($existingQty + $quantity) > $stock) {
+            header("Location: cart.php?cart_error=stock&available=" . $stock);
+            exit;
+        }
+    }
+
     $check = $pdo->prepare("
-        SELECT id 
+        SELECT id, quantity, service_files
         FROM cart_items 
         WHERE user_id = ? AND product_id = ?
     ");
@@ -36,36 +127,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
     $existing = $check->fetch(PDO::FETCH_ASSOC);
 
     if ($existing) {
+        $oldServiceFiles = decodeServiceFiles($existing['service_files'] ?? null);
+        $mergedServiceFiles = $isService ? array_merge($oldServiceFiles, $serviceFiles) : [];
+        $newQuantity = $isService ? max(1, count($mergedServiceFiles)) : ((int)$existing['quantity'] + $quantity);
 
-        // UPDATE (FIXED: now includes rental fields too)
         $update = $pdo->prepare("
             UPDATE cart_items 
             SET 
-                quantity = quantity + ?,
-                date_from = COALESCE(?, date_from),
-                date_to = COALESCE(?, date_to),
+                quantity = ?,
+                date_from = ?,
+                date_to = ?,
                 full_name = COALESCE(?, full_name),
                 student_no = COALESCE(?, student_no),
-                age = COALESCE(?, age),
-                gender = COALESCE(?, gender)
+                age = ?,
+                gender = ?,
+                print_type = COALESCE(?, print_type),
+                service_files = ?
             WHERE user_id = ? AND product_id = ?
         ");
 
         $update->execute([
-            $quantity,
-            $date_from,
-            $date_to,
+            $newQuantity,
+            $isService ? null : $date_from,
+            $isService ? null : $date_to,
             $full_name,
             $student_no,
-            $age,
-            $gender,
+            $isService ? null : $age,
+            $isService ? null : $gender,
+            $print_type,
+            $isService ? json_encode($mergedServiceFiles) : null,
             $user_id,
             $product_id
         ]);
 
     } else {
-
-        // INSERT NEW ITEM
         $insert = $pdo->prepare("
             INSERT INTO cart_items 
             (
@@ -77,28 +172,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
                 full_name,
                 student_no,
                 age,
-                gender
+                gender,
+                print_type,
+                service_files
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $insert->execute([
             $user_id,
             $product_id,
             $quantity,
-            $date_from,
-            $date_to,
+            $isService ? null : $date_from,
+            $isService ? null : $date_to,
             $full_name,
             $student_no,
-            $age,
-            $gender
+            $isService ? null : $age,
+            $isService ? null : $gender,
+            $print_type,
+            $isService ? json_encode($serviceFiles) : null
         ]);
     }
 
     header("Location: cart.php");
     exit;
 }
-
 
 /* =========================
    REMOVE ITEM
@@ -117,9 +215,8 @@ if (isset($_GET['remove'])) {
     exit;
 }
 
-
 /* =========================
-   GET CART ITEMS (FIXED)
+   GET CART ITEMS
 ========================= */
 $stmt = $pdo->prepare("
     SELECT 
@@ -131,10 +228,13 @@ $stmt = $pdo->prepare("
         c.student_no,
         c.age,
         c.gender,
+        c.print_type,
+        c.service_files,
         p.prod_name,
         p.prod_price,
         p.prod_image,
-        p.prod_rate_type
+        p.prod_rate_type,
+        p.category_id
     FROM cart_items c
     JOIN products p ON p.prod_id = c.product_id
     WHERE c.user_id = ?
@@ -167,19 +267,10 @@ function calculateCartSubtotal(float $price, int $quantity, ?string $rateType, ?
         return $price * $quantity * $duration;
     }
 
-    if ($rate === 'per hour') {
-        return $price * $quantity * max(1, $duration * 24);
-    }
-
     return $price * $quantity;
 }
 
-
-/* =========================
-   TOTAL
-========================= */
 $total = 0;
-
 ?>
 
 <!DOCTYPE html>
@@ -189,7 +280,7 @@ $total = 0;
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <style>
+<style>
         * {
             box-sizing: border-box;
         }
@@ -570,7 +661,39 @@ $total = 0;
             font-size: 15px;
             cursor: pointer;
         }
-    </style>
+    
+        .service-file-list {
+            margin: 6px 0 0 18px;
+            padding: 0;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .service-file-list li {
+            word-break: break-word;
+        }
+
+        .service-detail-box {
+            background: #f3f7f5;
+            border-radius: 0 24px 24px 24px;
+            padding: 15px 18px;
+            box-shadow: 0 3px 4px rgba(0, 0, 0, 0.25);
+            margin-bottom: 14px;
+        }
+
+        .service-detail-box p {
+            font-size: 13px;
+            margin: 8px 0;
+        }
+
+        .service-detail-box ul {
+            margin: 8px 0 0 18px;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+</style>
 
 </head>
 
@@ -593,6 +716,20 @@ $total = 0;
     <div class="cart-container">
         <h2>Cart</h2>
 
+        <?php if (isset($_GET['cart_error'])): ?>
+            <?php
+                $cartMessage = 'Unable to update cart.';
+
+                if ($_GET['cart_error'] === 'stock') {
+                    $available = (int)($_GET['available'] ?? 0);
+                    $cartMessage = 'Quantity cannot exceed available stock' . ($available > 0 ? ' (' . $available . ' available).' : '.');
+                } elseif ($_GET['cart_error'] === 'not_found') {
+                    $cartMessage = 'Product not found.';
+                }
+            ?>
+            <script>alert(<?= json_encode($cartMessage) ?>);</script>
+        <?php endif; ?>
+
         <?php if (empty($items)): ?>
             <p>Your cart is empty.</p>
         <?php endif; ?>
@@ -602,21 +739,28 @@ $total = 0;
             <?php
                 $price = (float)$item['prod_price'];
                 $qty = (int)$item['quantity'];
-                $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
-                $subtotal = calculateCartSubtotal($price, $qty, $rateType, $item['date_from'], $item['date_to']);
+                $categoryId = (int)($item['category_id'] ?? 0);
+                $isService = $categoryId === 3;
+                $serviceFiles = decodeServiceFiles($item['service_files'] ?? null);
+                if ($isService && count($serviceFiles) > 0) {
+                    $qty = count($serviceFiles);
+                }
+
+                $rateType = $isService ? 'Per File' : trim($item['prod_rate_type'] ?? 'Per Piece');
+                $subtotal = calculateCartSubtotal($price, $qty, $isService ? null : $rateType, $item['date_from'], $item['date_to']);
                 $total += $subtotal;
                 $duration = getRentalDurationDays($item['date_from'], $item['date_to']);
                 $durationLabel = '';
-                if (strtolower($rateType) === 'per day') {
+
+                if (!$isService && strtolower($rateType) === 'per day') {
                     $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
-                } elseif (strtolower($rateType) === 'per hour') {
-                    $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
                 }
             ?>
 
             <div 
                 class="cart-row"
                 onclick="selectCartItem(event, this)"
+                data-category-id="<?= $categoryId ?>"
                 data-name="<?= htmlspecialchars($item['prod_name'], ENT_QUOTES) ?>"
                 data-price="<?= $price ?>"
                 data-qty="<?= $qty ?>"
@@ -627,6 +771,8 @@ $total = 0;
                 data-student-no="<?= htmlspecialchars($item['student_no'] ?? '', ENT_QUOTES) ?>"
                 data-age="<?= htmlspecialchars($item['age'] ?? '', ENT_QUOTES) ?>"
                 data-gender="<?= htmlspecialchars($item['gender'] ?? '', ENT_QUOTES) ?>"
+                data-print-type="<?= htmlspecialchars($item['print_type'] ?? '', ENT_QUOTES) ?>"
+                data-service-files="<?= htmlspecialchars(json_encode($serviceFiles), ENT_QUOTES) ?>"
             >
 
                 <div class="cart-item">
@@ -635,11 +781,24 @@ $total = 0;
 
                     <div class="cart-info">
                         <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                        <p>Price: ₱<?= number_format($price, 2) ?> / <?= htmlspecialchars($rateType) ?></p>
-                        <p>Quantity: <?= $qty ?></p>
-                        <?php if (!empty($durationLabel)): ?>
-                            <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+
+                        <?php if ($isService): ?>
+                           
+                           
+                            <?php if (!empty($serviceFiles)): ?>
+                                <ul class="service-file-list">
+                                   
+                                </ul>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            
+                            <p>Quantity: <?= $qty ?></p>
+
+                            <?php if (!empty($durationLabel)): ?>
+                                <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+                            <?php endif; ?>
                         <?php endif; ?>
+
                         <p><strong>Subtotal: ₱<?= number_format($subtotal, 2) ?></strong></p>
                     </div>
 
@@ -664,7 +823,6 @@ $total = 0;
         </div>
     </div>
 
-    <!-- RIGHT PANEL -->
     <?php if (!empty($items)): ?>
 
     <div class="right-panel">
@@ -685,11 +843,20 @@ $total = 0;
                 <p>Price: ₱<span id="detailPrice"></span></p>
             </div>
 
-            <div class="qty-control">
+            <div class="qty-control" id="quantitySection">
                 Quantity:
-                <button type="button" onclick="minusQty()">−</button>
                 <span class="qty-num" id="detailQty">0</span>
-                <button type="button" onclick="plusQty()">+</button>
+            </div>
+
+            <div class="service-detail-box" id="serviceSection" style="display:none;">
+                <h3>Service Information</h3>
+                <p>Print Type: <span id="detailPrintType"></span></p>
+                <p>Files selected: <span id="detailFileCount"></span></p>
+                <ul id="detailServiceFiles"></ul>
+
+                <h3 style="margin-top:14px;">Customer Information</h3>
+                <p>Full Name: <span id="serviceFullName"></span></p>
+                <p>Student No.: <span id="serviceStudentNo"></span></p>
             </div>
 
             <div class="date-row" id="detailDateRow" style="display:none;">
@@ -724,7 +891,10 @@ function selectCartItem(event, row) {
         return;
     }
 
+    const serviceFiles = JSON.parse(row.dataset.serviceFiles || '[]');
+
     const details = {
+        categoryId: parseInt(row.dataset.categoryId || '0', 10),
         name: row.dataset.name || '',
         price: row.dataset.price || '0.00',
         qty: row.dataset.qty || '0',
@@ -734,18 +904,26 @@ function selectCartItem(event, row) {
         fullName: row.dataset.fullName || '',
         studentNo: row.dataset.studentNo || '',
         age: row.dataset.age || '',
-        gender: row.dataset.gender || ''
+        gender: row.dataset.gender || '',
+        printType: row.dataset.printType || '',
+        serviceFiles: serviceFiles
     };
+
+    const isService = details.categoryId === 3;
 
     const placeholder = document.getElementById('detailPlaceholder');
     const content = document.getElementById('detailContent');
     const dateRow = document.getElementById('detailDateRow');
     const borrowerSection = document.getElementById('borrowerSection');
+    const serviceSection = document.getElementById('serviceSection');
+    const quantitySection = document.getElementById('quantitySection');
+    const serviceFilesList = document.getElementById('detailServiceFiles');
 
     document.getElementById('detailName').innerText = details.name;
     document.getElementById('detailPrice').innerText = parseFloat(details.price).toFixed(2);
     document.getElementById('detailQty').innerText = details.qty;
     document.getElementById('detailImage').src = details.image;
+
     document.getElementById('fromDate').value = details.dateFrom;
     document.getElementById('toDate').value = details.dateTo;
     document.getElementById('borrowerName').value = details.fullName;
@@ -753,10 +931,38 @@ function selectCartItem(event, row) {
     document.getElementById('age').value = details.age;
     document.getElementById('gender').value = details.gender;
 
-    const hasRentalInfo = Boolean(details.dateFrom || details.dateTo || details.fullName || details.studentNo || details.age || details.gender);
+    serviceFilesList.innerHTML = '';
 
-    dateRow.style.display = hasRentalInfo ? 'flex' : 'none';
-    borrowerSection.style.display = hasRentalInfo ? 'block' : 'none';
+    if (isService) {
+        document.getElementById('detailPrintType').innerText = details.printType || 'Not provided';
+        document.getElementById('detailFileCount').innerText = details.serviceFiles.length || details.qty;
+        document.getElementById('serviceFullName').innerText = details.fullName || 'Not provided';
+        document.getElementById('serviceStudentNo').innerText = details.studentNo || 'Not provided';
+
+        if (details.serviceFiles.length > 0) {
+            details.serviceFiles.forEach(function(fileName) {
+                const li = document.createElement('li');
+                li.textContent = fileName;
+                serviceFilesList.appendChild(li);
+            });
+        } else {
+            const li = document.createElement('li');
+            li.textContent = 'No file names saved';
+            serviceFilesList.appendChild(li);
+        }
+
+        serviceSection.style.display = 'block';
+        dateRow.style.display = 'none';
+        borrowerSection.style.display = 'none';
+        quantitySection.style.display = 'flex';
+    } else {
+        const hasRentalInfo = Boolean(details.dateFrom || details.dateTo || details.fullName || details.studentNo || details.age || details.gender);
+
+        serviceSection.style.display = 'none';
+        dateRow.style.display = hasRentalInfo ? 'flex' : 'none';
+        borrowerSection.style.display = hasRentalInfo ? 'block' : 'none';
+        quantitySection.style.display = 'flex';
+    }
 
     placeholder.style.display = 'none';
     content.style.display = 'block';
@@ -765,21 +971,6 @@ function selectCartItem(event, row) {
         item.classList.toggle('active', item === row);
     });
 }
-
-function plusQty() {
-    const qtyBox = document.getElementById('detailQty');
-    qtyBox.innerText = parseInt(qtyBox.innerText || 0, 10) + 1;
-}
-
-function minusQty() {
-    const qtyBox = document.getElementById('detailQty');
-    const qty = parseInt(qtyBox.innerText || 0, 10);
-    if (qty > 1) {
-        qtyBox.innerText = qty - 1;
-    }
-}
-
-
 </script>
 
 </body>

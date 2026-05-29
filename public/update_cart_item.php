@@ -9,22 +9,43 @@ $db = new Database();
 $pdo = $db->pdo;
 
 $product_id = (int)($_POST['product_id'] ?? 0);
-$quantity = (int)($_POST['quantity'] ?? 1);
+$quantity = max(1, (int)($_POST['quantity'] ?? 1));
 
 $date_from = $_POST['date_from'] ?? null;
 $date_to = $_POST['date_to'] ?? null;
 
-$borrower_name = $_POST['borrower_name'] ?? null;
+$full_name = $_POST['full_name'] ?? null;
 $student_no = $_POST['student_no'] ?? null;
-$age = (int)($_POST['age'] ?? 0);
+$age = isset($_POST['age']) && $_POST['age'] !== '' ? (int)$_POST['age'] : null;
 $gender = $_POST['gender'] ?? null;
+
+if ($product_id <= 0) {
+    header("Location: cart.php");
+    exit;
+}
+
+$stockStmt = $pdo->prepare("SELECT prod_stock FROM products WHERE prod_id = ? LIMIT 1");
+$stockStmt->execute([$product_id]);
+$availableStock = $stockStmt->fetchColumn();
+
+if ($availableStock === false) {
+    header("Location: cart.php?cart_error=not_found");
+    exit;
+}
+
+$availableStock = (int)$availableStock;
+
+if ($quantity > $availableStock) {
+    header("Location: cart.php?cart_error=stock&available=" . $availableStock);
+    exit;
+}
 
 $stmt = $pdo->prepare("
     UPDATE cart_items
     SET quantity = ?,
         date_from = ?,
         date_to = ?,
-        borrower_name = ?,
+        full_name = ?,
         student_no = ?,
         age = ?,
         gender = ?
@@ -35,7 +56,7 @@ $stmt->execute([
     $quantity,
     $date_from,
     $date_to,
-    $borrower_name,
+    $full_name,
     $student_no,
     $age,
     $gender,

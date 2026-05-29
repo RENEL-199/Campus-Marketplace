@@ -66,6 +66,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
     $stock = trim($_POST["stock"]);
     $location = trim($_POST["location"] ?? "");
     $rate_type = trim($_POST["rate_type"] ?? "");
+if (strcasecmp($rate_type, "Per Hour") === 0) {
+    $rate_type = "Per Day";
+}
 
     if ($name === "" || $desc === "" || $price === "" || $category_id === "" || $stock === "") {
 
@@ -149,6 +152,9 @@ $category_id = trim($_POST["category"]);
 $stock = trim($_POST["stock"]);
 $location = trim($_POST["location"] ?? "");
 $rate_type = trim($_POST["rate_type"] ?? "");
+if (strcasecmp($rate_type, "Per Hour") === 0) {
+    $rate_type = "Per Day";
+}
 
 if ($name === "" || $desc === "" || $price === "" || $category_id === "" || $stock === "") {
     echo "<script>alert('Please fill out Product Name, Description, Price, Quantity, and Category.'); window.location.href='seller_dashboard.php';</script>";
@@ -526,7 +532,7 @@ button {
 }
 
 
-/* Move Per Hour / Per Day / Per Piece boxes upward */
+/* Move Per Day / Per Piece boxes upward */
 .rate-box {
     transform: translateY(-6px); /* adjust -4px, -8px, etc. */
 }
@@ -607,16 +613,18 @@ button {
 
 <body>
 
-<nav>
-    <h1>Seller Dashboard</h1>
-    <div>
-        <a href="index.php"><i class="fa-solid fa-house"></i></a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i></a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
-        <a href="account.php"><i class="fa-solid fa-user"></i></a>
-    </div>
-</nav>
+    <!-- NAV -->
+    <nav>
+        <h1>IskoHub</h1>
+        <div>
+            <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
+            <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        </div>
+    </nav>
+
 
 <div class="dashboard">
 
@@ -671,7 +679,6 @@ button {
     <div class="rate-box">
         <label class="small-label">If Applicable:</label>
         <div class="rate-buttons">
-<button type="button" class="rate-option" data-rate="Per Hour">Per Hour</button>
 <button type="button" class="rate-option" data-rate="Per Day">Per Day</button>
 <button type="button" class="rate-option" data-rate="Per Piece">Per Piece</button>
 

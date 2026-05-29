@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 29, 2026 at 10:46 AM
+-- Generation Time: May 29, 2026 at 06:28 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `iskohub`
+-- Database: `database1`
 --
 
 -- --------------------------------------------------------
@@ -53,18 +53,21 @@ CREATE TABLE `cart_items` (
   `item_type` varchar(20) DEFAULT 'product',
   `service_file` varchar(255) DEFAULT NULL,
   `copies` int(11) DEFAULT NULL,
-  `print_type` varchar(20) DEFAULT NULL
+  `print_type` varchar(20) DEFAULT NULL,
+  `service_files` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `cart_items`
 --
 
-INSERT INTO `cart_items` (`id`, `user_id`, `product_id`, `quantity`, `created_at`, `date_from`, `date_to`, `full_name`, `student_no`, `age`, `gender`, `is_rental`, `item_type`, `service_file`, `copies`, `print_type`) VALUES
-(15, 1, 8, 1, '2026-05-29 02:50:37', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL),
-(16, 1, 9, 1, '2026-05-29 08:01:20', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL),
-(18, 1, 15, 2, '2026-05-29 08:20:46', NULL, NULL, 'Grace', 'babaasdfgh', NULL, NULL, 0, 'product', NULL, NULL, NULL),
-(21, 9, 14, 1, '2026-05-29 08:35:38', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL);
+INSERT INTO `cart_items` (`id`, `user_id`, `product_id`, `quantity`, `created_at`, `date_from`, `date_to`, `full_name`, `student_no`, `age`, `gender`, `is_rental`, `item_type`, `service_file`, `copies`, `print_type`, `service_files`) VALUES
+(15, 1, 8, 1, '2026-05-29 02:50:37', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL, NULL),
+(16, 1, 9, 1, '2026-05-29 08:01:20', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL, NULL),
+(21, 9, 14, 1, '2026-05-29 08:35:38', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL, NULL),
+(22, 1, 14, 1, '2026-05-29 15:30:10', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'product', NULL, NULL, NULL, NULL),
+(23, 1, 15, 5, '2026-05-29 15:32:04', NULL, NULL, 'Grace', 'babaasdfgh', NULL, NULL, 0, 'product', NULL, NULL, NULL, NULL),
+(24, 1, 17, 1, '2026-05-29 15:52:27', '2026-05-01', '2026-05-04', 'baba', 'baba', 12, 'Female', 0, 'product', NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -175,9 +178,9 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`prod_id`, `prod_name`, `prod_desc`, `prod_price`, `prod_image`, `prod_stock`, `location`, `prod_duration`, `user_id`, `category_id`, `prod_location`, `prod_rate_type`) VALUES
-(9, 'Calculator', 'A calculator is an electronic device used to perform mathematical calculations, ranging from basic operations like addition and subtraction to complex functions such as calculus and trigonometry.', 200.00, 'uploads/1780041668_Casio-Scientific-Calculator-PNG-Clipart.png', 10, NULL, NULL, 1, 1, NULL, NULL),
-(14, 'Printing Service', 'saas', 100.00, 'uploads/1780042803_OIP (4).webp', 1, NULL, NULL, 1, 1, NULL, NULL),
-(15, 'Printing Service', 'dgwwtr', 100.00, 'uploads/1780042828_OIP (4).jpg', 1, NULL, NULL, 1, 3, NULL, NULL);
+(16, 'Printing Service', 'sassasdaa', 100.00, 'uploads/1780069312_9353a0f9d427df32.jpg', 1, NULL, NULL, 1, 1, 'near sto.tomas', 'Per Piece'),
+(17, 'ink', 'rental', 100.00, 'uploads/1780069930_356eba15b2295df8.webp', 1, NULL, NULL, 1, 5, '', 'Per Day'),
+(18, 'dementor', 'service', 200.00, 'uploads/1780070194_OIP (1).jpg', 15, NULL, NULL, 1, 3, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -283,7 +286,7 @@ ALTER TABLE `cart`
 -- AUTO_INCREMENT for table `cart_items`
 --
 ALTER TABLE `cart_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -313,7 +316,7 @@ ALTER TABLE `order_items`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `prod_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `prod_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `users`

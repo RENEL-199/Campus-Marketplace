@@ -42,18 +42,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $profile['birthday'] = trim($_POST['birthday'] ?? '');
     $profile['gender'] = trim($_POST['gender'] ?? '');
 
-    if (!empty($_FILES['profile_picture']['name'])) {
-        $uploadDir = __DIR__ . '/uploads/profile/';
+    if (!empty($_FILES['profile_picture']['name']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+        $allowedTypes = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp'
+        ];
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
+        $tmpName = $_FILES['profile_picture']['tmp_name'];
+        $mimeType = mime_content_type($tmpName);
 
-        $fileName = time() . '_' . basename($_FILES['profile_picture']['name']);
-        $targetPath = $uploadDir . $fileName;
+        if (isset($allowedTypes[$mimeType])) {
+            $uploadDir = __DIR__ . '/uploads/profile/';
 
-        if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $targetPath)) {
-            $profile['profile_picture'] = 'uploads/profile/' . $fileName;
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+
+            $fileName = time() . '_' . bin2hex(random_bytes(8)) . '.' . $allowedTypes[$mimeType];
+            $targetPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($tmpName, $targetPath)) {
+                $profile['profile_picture'] = 'uploads/profile/' . $fileName;
+            }
         }
     }
 

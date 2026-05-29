@@ -2,6 +2,10 @@
 
 class View {
 
+    private function e(?string $value): string {
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+
     public function renderProductCard(Product $product): string {
 
         $desc = $product->prod_desc ?? '';
@@ -11,42 +15,47 @@ class View {
             : $desc . "......";
 
         $price = number_format((float)$product->prod_price, 0);
-
         $categoryId = (int)$product->category_id;
 
-        // ✅ ROUTE MODAL BASED ON CATEGORY
-        if ($categoryId == 3) {
+        if ($categoryId === 3) {
             $openFunction = "openService";
-        } elseif ($categoryId == 5) {
+        } elseif ($categoryId === 5) {
             $openFunction = "openRental";
         } else {
             $openFunction = "openProduct";
         }
 
+        $image = $this->e($product->prod_image);
+        $name = $this->e($product->prod_name);
+        $category = $this->e($product->category_name ?? 'Uncategorized');
+        $description = $this->e($shortDesc);
+        $stock = (int)$product->prod_stock;
+        $id = (int)$product->prod_id;
+
         return "
         <div class='card'>
-            <img src='{$product->prod_image}' alt='product'>
+            <img src='{$image}' alt='{$name}'>
 
             <div class='card-content'>
 
                 <div class='card-top-row'>
-                    <h3>{$product->prod_name}</h3>
-                    <span class='category-tag'>{$product->category_name}</span>
+                    <h3>{$name}</h3>
+                    <span class='category-tag'>{$category}</span>
                 </div>
 
                 <p class='card-description'>
-                    {$shortDesc}
-                    <a href='#' onclick='{$openFunction}({$product->prod_id}); return false;'>
+                    {$description}
+                    <a href='#' onclick='{$openFunction}({$id}); return false;'>
                         read more
                     </a>
                 </p>
 
                 <div class='card-price-stock-row'>
                     <div class='price'>₱{$price}</div>
-                    <div class='stock'>Stock: {$product->prod_stock}</div>
+                    <div class='stock'>Stock: {$stock}</div>
                 </div>
 
-                <button type='button' onclick='{$openFunction}({$product->prod_id})'>
+                <button type='button' onclick='{$openFunction}({$id})'>
                     View Item
                 </button>
 

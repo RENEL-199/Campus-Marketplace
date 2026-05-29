@@ -6,6 +6,28 @@ require_login();
 
 $db = new Database();
 $pdo = $db->pdo;
+
+function public_image_path(?string $path): string {
+    $path = trim((string)$path);
+
+    if ($path === '') {
+        return 'uploads/default.png';
+    }
+
+    $path = str_replace('\\', '/', $path);
+
+    if (preg_match('/^https?:\/\//i', $path)) {
+        return $path;
+    }
+
+    $pos = strpos($path, 'uploads/');
+    if ($pos !== false) {
+        return substr($path, $pos);
+    }
+
+    return 'uploads/' . basename($path);
+}
+
 $user_id = current_user_id();
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS orders (
@@ -245,12 +267,12 @@ nav i {
             <div class="order">
                 <div class="order-img">
                     <?php if (!empty($order['sample_image'])): ?>
-                        <img src="<?= htmlspecialchars($order['sample_image']) ?>" alt="Order image">
+                        <img src="<?= htmlspecialchars(public_image_path($order['sample_image'])) ?>" alt="Order image">
                     <?php endif; ?>
                 </div>
                 <div class="order-info">
                     <h3><?= htmlspecialchars($order['sample_name'] ?: 'Order #' . $order['id']) ?></h3>
-                    <p>Order #<?= htmlspecialchars($order['id']) ?> • <?= htmlspecialchars($order['created_at']) ?></p>
+                    <?= htmlspecialchars($order['created_at']) ?></p>
                     <p>Total: ₱<?= number_format($order['total'], 2) ?> • <?= (int)$order['item_count'] ?> item(s)</p>
                 </div>
                 <button class="view-btn" onclick="openReceipt(<?= (int)$order['id'] ?>)">View Receipt</button>

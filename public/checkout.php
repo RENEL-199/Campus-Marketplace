@@ -9,11 +9,36 @@ $pdo = $db->pdo;
 
 $user_id = current_user_id();
 
-$stmt = $pdo->prepare("SELECT c.*, p.prod_name, p.prod_price, p.prod_image, p.prod_rate_type FROM cart_items c JOIN products p ON p.prod_id = c.product_id WHERE c.user_id = ?");
-$stmt->execute([$user_id]);
+$selected_items = $_POST['selected_items'] ?? $_GET['selected_items'] ?? [];
+
+if (!is_array($selected_items)) {
+    $selected_items = [$selected_items];
+}
+
+$selected_items = array_values(array_unique(array_filter(array_map('intval', $selected_items), function ($id) {
+    return $id > 0;
+})));
+
+if (empty($selected_items)) {
+    header('Location: cart.php?checkout_error=no_selected');
+    exit;
+}
+
+$placeholders = implode(',', array_fill(0, count($selected_items), '?'));
+
+$stmt = $pdo->prepare("
+    SELECT c.*, p.prod_name, p.prod_price, p.prod_image, p.prod_rate_type
+    FROM cart_items c
+    JOIN products p ON p.prod_id = c.product_id
+    WHERE c.user_id = ?
+    AND c.product_id IN ($placeholders)
+");
+
+$stmt->execute(array_merge([$user_id], $selected_items));
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-function getRentalDurationDays(?string $from, ?string $to): int {
+function getRentalDurationDays(?string $from, ?string $to): int
+{
     if (empty($from) || empty($to)) {
         return 1;
     }
@@ -28,7 +53,8 @@ function getRentalDurationDays(?string $from, ?string $to): int {
     return max(1, (int)floor(($end - $start) / 86400) + 1);
 }
 
-function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
+function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float
+{
     $duration = getRentalDurationDays($from, $to);
     $rate = strtolower(trim($rateType ?? ''));
 
@@ -36,11 +62,17 @@ function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateTyp
         return $price * $quantity * $duration;
     }
 
-    if ($rate === 'per hour') {
-        return $price * $quantity * max(1, $duration * 24);
+    return $price * $quantity;
+}
+
+function decodeServiceFiles(?string $json): array
+{
+    if (empty($json)) {
+        return [];
     }
 
-    return $price * $quantity;
+    $files = json_decode($json, true);
+    return is_array($files) ? $files : [];
 }
 
 $total = 0;
@@ -57,382 +89,396 @@ foreach ($items as $item) {
 
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Checkout</title>
+    <title>Checkout</title>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-<style>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-*{
-    box-sizing:border-box;
-}
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #eef1ef;
+        }
 
-body{
-    margin:0;
-    font-family:Arial;
-    background:#eef1ef;
-}
+        nav {
+            height: 58px;
+            background: #810C01;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 26px;
+        }
 
-nav {
-    height: 58px;
-    background: #810C01;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 26px;
-}
+        nav h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
 
-nav h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
 
-.nav-links {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-}
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 12px;
+        }
 
-nav a {
-    color: white;
-    text-decoration: none;
-    font-size: 12px;
-}
+        nav i {
+            margin-right: 4px;
+            font-size: 13px;
+        }
 
-nav i {
-    margin-right: 4px;
-    font-size: 13px;
-}
+        /* MAIN CONTAINER */
 
-/* MAIN CONTAINER */
+        .checkout-container {
+            width: 1060px;
+            min-height: 560px;
+            background: white;
+            margin: 38px auto;
+            border-radius: 24px;
+            padding: 44px 62px 28px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
 
-.checkout-container{
-    width:1060px;
-    min-height:560px;
-    background:white;
-    margin:38px auto;
-    border-radius:24px;
-    padding:44px 62px 28px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.2);
-}
+        /* TOP CONTENT */
 
-/* TOP CONTENT */
+        .checkout-content {
+            display: flex;
+            gap: 38px;
+        }
 
-.checkout-content{
-    display:flex;
-    gap:38px;
-}
+        /* LEFT SIDE */
 
-/* LEFT SIDE */
+        .items-list {
+            width: 470px;
+        }
 
-.items-list{
-    width:470px;
-}
+        .checkout-item {
+            background: #f1f4f2;
+            height: 96px;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
 
-.checkout-item{
-    background:#f1f4f2;
-    height:96px;
-    border-radius:24px;
-    display:flex;
-    align-items:center;
-    padding:16px;
-    margin-bottom:30px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.2);
-}
+        .img-box {
+            width: 68px;
+            height: 60px;
+            background: #d9d9d9;
+            border-radius: 12px;
+        }
 
-.img-box{
-    width:68px;
-    height:60px;
-    background:#d9d9d9;
-    border-radius:12px;
-}
+        .item-info {
+            margin-left: 22px;
+        }
 
-.item-info{
-    margin-left:22px;
-}
+        .item-info h3 {
+            margin: 0;
+            font-size: 23px;
+            font-weight: 500;
+        }
 
-.item-info h3{
-    margin:0;
-    font-size:23px;
-    font-weight:500;
-}
+        .item-info p {
+            margin: 0;
+            font-size: 14px;
+        }
 
-.item-info p{
-    margin:0;
-    font-size:14px;
-}
+        /* RIGHT SIDE */
 
-/* RIGHT SIDE */
+        .info-box {
+            width: 410px;
+            height: 345px;
+            background: #f1f4f2;
+            border-radius: 0 24px 24px 24px;
+            padding: 18px 22px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
 
-.info-box{
-    width:410px;
-    height:345px;
-    background:#f1f4f2;
-    border-radius:0 24px 24px 24px;
-    padding:18px 22px;
-    box-shadow:0 2px 5px rgba(0,0,0,0.2);
-}
+        .info-box h2 {
+            margin: 0 0 14px;
+            font-size: 22px;
+            font-weight: 500;
+        }
 
-.info-box h2{
-    margin:0 0 14px;
-    font-size:22px;
-    font-weight:500;
-}
+        /* INPUTS */
 
-/* INPUTS */
+        .info-box input {
+            width: 258px;
+            height: 33px;
+            border: 1px solid #999;
+            border-radius: 8px;
+            margin-bottom: 11px;
+            padding: 0 10px;
+            font-size: 14px;
+        }
 
-.info-box input{
-    width:258px;
-    height:33px;
-    border:1px solid #999;
-    border-radius:8px;
-    margin-bottom:11px;
-    padding:0 10px;
-    font-size:14px;
-}
+        /* PAYMENT */
 
-/* PAYMENT */
+        .payment-title {
+            margin-top: 48px;
+            font-size: 22px;
+        }
 
-.payment-title{
-    margin-top:48px;
-    font-size:22px;
-}
+        .payment-buttons {
+            display: flex;
+            gap: 14px;
+            margin-top: 10px;
+        }
 
-.payment-buttons{
-    display:flex;
-    gap:14px;
-    margin-top:10px;
-}
+        .payment-buttons button {
+            background: white;
+            border: 1px solid #b64d42;
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #777;
+            cursor: pointer;
+        }
 
-.payment-buttons button{
-    background:white;
-    border:1px solid #b64d42;
-    border-radius:10px;
-    padding:10px 14px;
-    color:#777;
-    cursor:pointer;
-}
+        .payment-buttons button.active {
+            background: #b64d42;
+            color: white;
+            border-color: #990b00;
+        }
 
-.payment-buttons button.active{
-    background:#b64d42;
-    color:white;
-    border-color:#990b00;
-}
+        .payment-buttons button:hover {
+            border-color: #990b00;
+        }
 
-.payment-buttons button:hover{
-    border-color:#990b00;
-}
+        /* BOTTOM */
 
-/* BOTTOM */
+        .bottom-row {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 150px;
+            margin-top: 78px;
+        }
 
-.bottom-row{
-    display:flex;
-    justify-content:flex-end;
-    align-items:center;
-    gap:150px;
-    margin-top:78px;
-}
+        .total {
+            font-size: 25px;
+            font-weight: bold;
+        }
 
-.total{
-    font-size:25px;
-    font-weight:bold;
-}
+        .place-btn {
+            background: #990b00;
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 12px 28px;
+            font-size: 17px;
+            cursor: pointer;
+        }
 
-.place-btn{
-    background:#990b00;
-    color:white;
-    border:none;
-    border-radius:14px;
-    padding:12px 28px;
-    font-size:17px;
-    cursor:pointer;
-}
+        .receipt-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
 
-.receipt-modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.45);
-    justify-content: center;
-    align-items: center;
-    z-index: 999;
-}
+        .receipt-box {
+            width: 390px;
+            background: white;
+            border-radius: 22px;
+            padding: 24px 30px;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
 
-.receipt-box {
-    width: 390px;
-    background: white;
-    border-radius: 22px;
-    padding: 24px 30px;
-    position: relative;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
+        .close-modal {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            font-size: 25px;
+            cursor: pointer;
+        }
 
-.close-modal {
-    position: absolute;
-    top: 12px;
-    right: 18px;
-    font-size: 25px;
-    cursor: pointer;
-}
+        .receipt-section {
+            background: #f1f4f2;
+            border-radius: 0 20px 20px 20px;
+            padding: 15px;
+            margin-top: 14px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
 
-.receipt-section {
-    background: #f1f4f2;
-    border-radius: 0 20px 20px 20px;
-    padding: 15px;
-    margin-top: 14px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
+        .receipt-section p {
+            margin: 7px 0;
+            font-size: 14px;
+        }
 
-.receipt-section p {
-    margin: 7px 0;
-    font-size: 14px;
-}
-
-.confirm-btn {
-    width: 100%;
-    margin-top: 18px;
-    background: #810C01;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 12px;
-    cursor: pointer;
-}
-
-</style>
+        .confirm-btn {
+            width: 100%;
+            margin-top: 18px;
+            background: #810C01;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 
 <body>
 
-<nav>
-    <h1>IskoHub</h1>
+    <nav>
+        <h1>IskoHub</h1>
 
-    <div class="nav-links">
-        <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
-        <a href="account.php"><i class="fa-solid fa-user"></i></a>
-    </div>
-</nav>
+        <div class="nav-links">
+            <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
+            <a href="account.php"><i class="fa-solid fa-user"></i></a>
+        </div>
+    </nav>
 
-<div class="checkout-container">
+    <div class="checkout-container">
 
-    <div class="checkout-content">
+        <div class="checkout-content">
 
-        <!-- LEFT -->
+            <!-- LEFT -->
 
-        <div class="items-list">
+            <div class="items-list">
 
-            <?php if (empty($items)): ?>
-                <p>Your cart is empty.</p>
-            <?php else: ?>
+                <?php if (empty($items)): ?>
+                    <p>Your cart is empty.</p>
+                <?php else: ?>
 
-                <?php foreach($items as $item): ?>
+                    <?php foreach ($items as $item): ?>
 
-                <div class="checkout-item">
+                        <div class="checkout-item">
 
-                    <div class="img-box">
-                        <?php if (!empty($item['prod_image'])): ?>
-                            <img src="<?= htmlspecialchars($item['prod_image']) ?>" alt="<?= htmlspecialchars($item['prod_name']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
-                        <?php endif; ?>
+                            <div class="img-box">
+                                <?php if (!empty($item['prod_image'])): ?>
+                                    <img src="<?= htmlspecialchars($item['prod_image']) ?>" alt="<?= htmlspecialchars($item['prod_name']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="item-info">
+                                <?php
+                                    $serviceFiles = decodeServiceFiles($item['service_files'] ?? null);
+                                    $serviceFileCount = count($serviceFiles);
+                                ?>
+                                <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
+                                <p>Price: ₱<?= number_format($item['prod_price'], 2) ?> / <?= htmlspecialchars(strtolower(trim($item['prod_rate_type'] ?? '')) === 'per hour' ? 'Per Day' : ($item['prod_rate_type'] ?: 'Per Piece')) ?></p>
+                                <p>Quantity: <?= (int)$item['quantity'] ?></p>
+                                <?php if ($serviceFileCount > 0): ?>
+                                    <p>Files uploaded: <?= $serviceFileCount ?></p>
+                                    <?php if (!empty($item['print_type'])): ?>
+                                        <p>Print type: <?= htmlspecialchars($item['print_type']) ?></p>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                                <?php
+                                $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
+                                $duration = getRentalDurationDays($item['date_from'] ?? null, $item['date_to'] ?? null);
+                                $durationLabel = '';
+                                if (strtolower($rateType) === 'per day') {
+                                    $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
+                                } elseif (strtolower($rateType) === 'per hour') {
+                                    $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
+                                }
+                                ?>
+                                <?php if (!empty($durationLabel)): ?>
+                                    <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+                                <?php endif; ?>
+                                <p><strong>Subtotal: ₱<?= number_format(calculateCheckoutSubtotal((float)$item['prod_price'], (int)$item['quantity'], $item['prod_rate_type'] ?? null, $item['date_from'] ?? null, $item['date_to'] ?? null), 2) ?></strong></p>
+                            </div>
+
+                        </div>
+
+                    <?php endforeach; ?>
+
+                <?php endif; ?>
+
+            </div>
+
+            <!-- RIGHT -->
+
+            <div class="info-box">
+
+                <h2>Information:</h2>
+
+                <form method="POST" action="place_order.php">
+
+                    <input type="text" name="fullname" id="receiverName" placeholder="Receiving Person" required>
+
+                    <input type="text" name="address" id="receiverAddress" placeholder="Receiving Address" required>
+
+                    <input type="text" name="phone" id="receiverContact" placeholder="Contact Number" required>
+
+                    <div class="payment-title">
+                        Payment Method
                     </div>
 
-                    <div class="item-info">
-                        <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                        <p>Price: ₱<?= number_format($item['prod_price'], 2) ?> / <?= htmlspecialchars($item['prod_rate_type'] ?: 'Per Piece') ?></p>
-                        <p>Quantity: <?= (int)$item['quantity'] ?></p>
-                        <?php
-                            $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
-                            $duration = getRentalDurationDays($item['date_from'] ?? null, $item['date_to'] ?? null);
-                            $durationLabel = '';
-                            if (strtolower($rateType) === 'per day') {
-                                $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
-                            } elseif (strtolower($rateType) === 'per hour') {
-                                $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
-                            }
-                        ?>
-                        <?php if (!empty($durationLabel)): ?>
-                            <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
-                        <?php endif; ?>
-                        <p><strong>Subtotal: ₱<?= number_format(calculateCheckoutSubtotal((float)$item['prod_price'], (int)$item['quantity'], $item['prod_rate_type'] ?? null, $item['date_from'] ?? null, $item['date_to'] ?? null), 2) ?></strong></p>
+                    <div class="payment-buttons">
+                        <button type="button" class="payment-option active" onclick="selectPayment('Cash on Delivery', this)">
+                            Cash on Delivery
+                        </button>
+
+                        <button type="button" class="payment-option" onclick="selectPayment('Gcash', this)">
+                            Gcash
+                        </button>
                     </div>
 
-                </div>
+                    <?php foreach ($selected_items as $selected_id): ?>
+                        <input type="hidden" name="selected_items[]" value="<?= (int)$selected_id ?>">
+                    <?php endforeach; ?>
 
-                <?php endforeach; ?>
+                    <input type="hidden" name="payment_method" id="paymentMethod" value="Cash on Delivery">
+                    <input type="hidden" name="total" value="<?= htmlspecialchars($total, ENT_QUOTES) ?>">
 
-            <?php endif; ?>
+                    <div class="bottom-row">
+
+                        <div class="total">
+                            Total: ₱<?= number_format($total, 2) ?>
+                        </div>
+
+                        <button class="place-btn" type="submit" <?= empty($items) ? 'disabled' : '' ?>>
+                            PLACE ORDER
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
 
         </div>
 
-        <!-- RIGHT -->
-
-        <div class="info-box">
-
-            <h2>Information:</h2>
-
-            <form method="POST" action="place_order.php">
-
-                <input type="text" name="fullname" id="receiverName" placeholder="Receiving Person" required>
-
-                <input type="text" name="address" id="receiverAddress" placeholder="Receiving Address" required>
-
-                <input type="text" name="phone" id="receiverContact" placeholder="Contact Number" required>
-
-                <div class="payment-title">
-                    Payment Method
-                </div>
-
-                <div class="payment-buttons">
-                    <button type="button" class="payment-option active" onclick="selectPayment('Cash on Delivery', this)">
-                        Cash on Delivery
-                    </button>
-
-                    <button type="button" class="payment-option" onclick="selectPayment('Gcash', this)">
-                        Gcash
-                    </button>
-                </div>
-
-                <input type="hidden" name="payment_method" id="paymentMethod" value="Cash on Delivery">
-                <input type="hidden" name="total" value="<?= htmlspecialchars($total, ENT_QUOTES) ?>">
-
-                <div class="bottom-row">
-
-                    <div class="total">
-                        Total: ₱<?= number_format($total, 2) ?>
-                    </div>
-
-                    <button class="place-btn" type="submit" <?= empty($items) ? 'disabled' : '' ?>>
-                        PLACE ORDER
-                    </button>
-
-                </div>
-
-            </form>
-
-        </div>
+        <?php if (empty($items)): ?>
+            <p style="margin-top: 20px; color: #900;">Your cart is empty. Add items to cart before checking out.</p>
+        <?php endif; ?>
 
     </div>
 
-    <?php if (empty($items)): ?>
-        <p style="margin-top: 20px; color: #900;">Your cart is empty. Add items to cart before checking out.</p>
-    <?php endif; ?>
-
-</div>
-
-<script>
-function selectPayment(method, element) {
-    document.getElementById('paymentMethod').value = method;
-    document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('active'));
-    if (element) {
-        element.classList.add('active');
-    }
-}
-</script>
+    <script>
+        function selectPayment(method, element) {
+            document.getElementById('paymentMethod').value = method;
+            document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('active'));
+            if (element) {
+                element.classList.add('active');
+            }
+        }
+    </script>
 
 </body>
+
 </html>

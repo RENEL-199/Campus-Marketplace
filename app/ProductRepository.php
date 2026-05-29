@@ -16,31 +16,89 @@ class ProductRepository {
        GET ALL PRODUCTS (WITH CATEGORY NAME)
     ========================= */
     public function getAll(): array {
-        $stmt = $this->pdo->query("
+        $stmt = $this->pdo->query(" 
             SELECT 
-                p.*,
+                p.prod_id,
+                p.user_id,
+                p.prod_name,
+                p.prod_desc,
+                p.prod_price,
+                p.prod_image,
+                p.prod_stock,
+                p.prod_location AS location,
+                p.prod_duration,
+                p.prod_rate_type,
+                p.category_id,
                 c.category_name
             FROM products p
             LEFT JOIN categories c 
-            ON p.category_id = c.category_id
+                ON p.category_id = c.category_id
             WHERE p.prod_stock > 0
+            ORDER BY p.prod_id DESC
         ");
 
         return $this->map($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
     /* =========================
-       GET PRODUCTS BY USER
+       GET ONE PRODUCT BY ID
     ========================= */
-    public function getByUser(int $user_id): array {
-        $stmt = $this->pdo->prepare("
+    public function getById(int $prod_id): ?Product {
+        $stmt = $this->pdo->prepare(" 
             SELECT 
-                p.*,
+                p.prod_id,
+                p.user_id,
+                p.prod_name,
+                p.prod_desc,
+                p.prod_price,
+                p.prod_image,
+                p.prod_stock,
+                p.prod_location AS location,
+                p.prod_duration,
+                p.prod_rate_type,
+                p.category_id,
                 c.category_name
             FROM products p
             LEFT JOIN categories c 
-            ON p.category_id = c.category_id
+                ON p.category_id = c.category_id
+            WHERE p.prod_id = ?
+            LIMIT 1
+        ");
+
+        $stmt->execute([$prod_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        $products = $this->map([$row]);
+        return $products[0] ?? null;
+    }
+
+    /* =========================
+       GET PRODUCTS BY USER
+    ========================= */
+    public function getByUser(int $user_id): array {
+        $stmt = $this->pdo->prepare(" 
+            SELECT 
+                p.prod_id,
+                p.user_id,
+                p.prod_name,
+                p.prod_desc,
+                p.prod_price,
+                p.prod_image,
+                p.prod_stock,
+                p.prod_location AS location,
+                p.prod_duration,
+                p.prod_rate_type,
+                p.category_id,
+                c.category_name
+            FROM products p
+            LEFT JOIN categories c 
+                ON p.category_id = c.category_id
             WHERE p.user_id = ?
+            ORDER BY p.prod_id DESC
         ");
 
         $stmt->execute([$user_id]);
@@ -54,7 +112,8 @@ class ProductRepository {
         if ($product->user_id <= 0) {
             throw new InvalidArgumentException('Invalid user ID when adding product. Please log in again.');
         }
-        $stmt = $this->pdo->prepare("
+
+        $stmt = $this->pdo->prepare(" 
             INSERT INTO products (
                 user_id,
                 prod_name,
@@ -62,7 +121,7 @@ class ProductRepository {
                 prod_price,
                 prod_image,
                 prod_stock,
-                location,
+                prod_location,
                 prod_duration,
                 prod_rate_type,
                 category_id
@@ -88,8 +147,7 @@ class ProductRepository {
        DELETE PRODUCT
     ========================= */
     public function delete(int $prod_id, int $user_id): void {
-
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->pdo->prepare(" 
             DELETE FROM products 
             WHERE prod_id = ? AND user_id = ?
         ");
@@ -101,22 +159,20 @@ class ProductRepository {
        MAP DATABASE TO PRODUCT OBJECT
     ========================= */
     private function map(array $rows): array {
-
         $products = [];
 
         foreach ($rows as $row) {
-
             $products[] = new Product(
-                $row['prod_id'],
-                $row['user_id'],
-                $row['prod_name'],
-                $row['prod_desc'],
-                $row['prod_price'],
-                $row['prod_image'],
-                $row['prod_stock'],
-                $row['location'],
-                $row['prod_duration'],
-                $row['category_id'],
+                (int)$row['prod_id'],
+                (int)$row['user_id'],
+                (string)$row['prod_name'],
+                (string)$row['prod_desc'],
+                (float)$row['prod_price'],
+                (string)$row['prod_image'],
+                (int)$row['prod_stock'],
+                $row['location'] ?? null,
+                $row['prod_duration'] ?? null,
+                isset($row['category_id']) ? (int)$row['category_id'] : null,
                 $row['prod_rate_type'] ?? null,
                 $row['category_name'] ?? null
             );
