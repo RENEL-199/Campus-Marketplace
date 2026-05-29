@@ -568,6 +568,40 @@ button {
     border: 2px solid #991000;
     background: #fff3f1;
 }
+
+ nav {
+            height: 58px;
+            background: #810C01;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 26px;
+                   font-family: Arial, sans-serif;
+        }
+
+        nav h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        nav div {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        nav i {
+            margin-right: 4px;
+            font-size: 13px;
+        }
 </style>
 </head>
 
