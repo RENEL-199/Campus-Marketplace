@@ -9,24 +9,36 @@ $user_id = current_user_id();
 $db = new Database();
 $pdo = $db->pdo;
 
-$stmt = $pdo->prepare("
-    SELECT 
-        c.product_id,
-        c.quantity,
-        p.name,
-        p.price,
-        p.image,
-        p.stock
-    FROM cart c
-    JOIN products p ON p.id = c.product_id
-    WHERE c.user_id = ?
-");
+$cartItems = $_SESSION['cart'] ?? [];
 
-$stmt->execute([$user_id]);
-$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+if (empty($cartItems)) {
+    header("Location: cart.php");
+    exit;
+}
 
-/* redirect if empty */
-if (!$items) {
+$productIds = array_keys($cartItems);
+$placeholders = implode(',', array_fill(0, count($productIds), '?'));
+
+$stmt = $pdo->prepare("SELECT id, name, price, image, stock FROM products WHERE id IN ($placeholders)");
+$stmt->execute($productIds);
+$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$items = [];
+foreach ($products as $product) {
+    $quantity = min($cartItems[$product['id']], max(0, $product['stock']));
+    if ($quantity > 0) {
+        $items[] = [
+            'product_id' => $product['id'],
+            'quantity' => $quantity,
+            'name' => $product['name'],
+            'price' => $product['price'],
+            'image' => $product['image'],
+            'stock' => $product['stock'],
+        ];
+    }
+}
+
+if (empty($items)) {
     header("Location: cart.php");
     exit;
 }

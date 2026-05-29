@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../app/Database.php';
 
 session_start();
@@ -7,8 +7,9 @@ $db = new Database();
 $pdo = $db->pdo;
 
 $error = "";
+$savedUsername = $_COOKIE['remember_username'] ?? '';
 
-if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
+if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token']) && !isset($_GET['timeout'])) {
 
     $stmt = $pdo->prepare("SELECT * FROM users WHERE remember_token = ?");
     $stmt->execute([$_COOKIE['remember_token']]);
@@ -36,9 +37,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($user && password_verify($password, $user['password'])) {
 
         $_SESSION['user_id'] = $user['id'];
+        $_SESSION['last_activity'] = time();
 
         if (isset($_POST['remember'])) {
-
             $token = bin2hex(random_bytes(32));
 
             $stmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE id = ?");
@@ -47,12 +48,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             setcookie(
                 "remember_token",
                 $token,
-                time() + (60 * 10), //10 mins
+                time() + (60 * 60 * 24 * 30), // 30 days
                 "/",
                 "",
                 false,
                 true
             );
+
+            setcookie(
+                "remember_username",
+                $username,
+                time() + (60 * 60 * 24 * 30),
+                "/",
+                "",
+                false,
+                false
+            );
+        } else {
+            setcookie("remember_username", "", time() - 3600, "/");
         }
 
         header("Location: index.php");
@@ -85,6 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 type="text" 
                 name="username" 
                 placeholder="Username" 
+                value="<?php echo htmlspecialchars($savedUsername); ?>"
                 required
             >
 
@@ -101,7 +115,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </p>
             <?php endif; ?>
 
-           
+            <?php if (isset($_GET['timeout'])) : ?>
+                <p style="color:orange;">
+                    Your session has expired. Please log in again.
+                </p>
+            <?php endif; ?>
 
             <button type="submit">
                 Login

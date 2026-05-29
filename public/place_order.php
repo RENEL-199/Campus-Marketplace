@@ -9,15 +9,30 @@ $pdo = $db->pdo;
 
 $user_id = current_user_id();
 
-/* CART */
-$stmt = $pdo->prepare("
-    SELECT c.*, p.price, p.stock
-    FROM cart c
-    JOIN products p ON p.id = c.product_id
-    WHERE c.user_id=?
-");
-$stmt->execute([$user_id]);
-$items = $stmt->fetchAll();
+$cartItems = $_SESSION['cart'] ?? [];
+if (empty($cartItems)) {
+    header("Location: cart.php");
+    exit;
+}
+
+$productIds = array_keys($cartItems);
+$placeholders = implode(',', array_fill(0, count($productIds), '?'));
+
+$stmt = $pdo->prepare("SELECT id, price, stock FROM products WHERE id IN ($placeholders)");
+$stmt->execute($productIds);
+$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$items = [];
+foreach ($products as $product) {
+    $quantity = min($cartItems[$product['id']], max(0, $product['stock']));
+    if ($quantity > 0) {
+        $items[] = [
+            'product_id' => $product['id'],
+            'quantity' => $quantity,
+            'price' => $product['price'],
+        ];
+    }
+}
 
 $pdo->beginTransaction();
 
@@ -64,6 +79,9 @@ try {
     }
 
     /* CLEAR CART */
+    unset($_SESSION['cart']);
+    setcookie("cart_count", '', time() - 3600, "/");
+
     $pdo->prepare("DELETE FROM cart WHERE user_id=?")
         ->execute([$user_id]);
 

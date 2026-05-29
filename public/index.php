@@ -5,8 +5,6 @@ require_once __DIR__ . '/../app/ProductRepository.php';
 require_once __DIR__ . '/../app/View.php';
 require_once __DIR__ . '/../app/auth.php';
 
-require_login();
-
 $user_id = current_user_id();
 
 $repo = new ProductRepository();

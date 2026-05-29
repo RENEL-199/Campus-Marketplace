@@ -20,9 +20,15 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// remove remember me cookie
+// remove remember me cookies
 setcookie(
     "remember_token",
+    "",
+    time() - 3600,
+    "/"
+);
+setcookie(
+    "remember_username",
     "",
     time() - 3600,
     "/"
