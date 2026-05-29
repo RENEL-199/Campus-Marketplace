@@ -23,6 +23,7 @@ class ProductRepository {
             FROM products p
             LEFT JOIN categories c 
             ON p.category_id = c.category_id
+            WHERE p.prod_stock > 0
         ");
 
         return $this->map($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -50,7 +51,9 @@ class ProductRepository {
        ADD PRODUCT
     ========================= */
     public function add(Product $product): void {
-
+        if ($product->user_id <= 0) {
+            throw new InvalidArgumentException('Invalid user ID when adding product. Please log in again.');
+        }
         $stmt = $this->pdo->prepare("
             INSERT INTO products (
                 user_id,
@@ -61,9 +64,10 @@ class ProductRepository {
                 prod_stock,
                 location,
                 prod_duration,
+                prod_rate_type,
                 category_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
@@ -75,6 +79,7 @@ class ProductRepository {
             $product->prod_stock,
             $product->location,
             $product->prod_duration,
+            $product->prod_rate_type,
             $product->category_id
         ]);
     }
@@ -112,6 +117,7 @@ class ProductRepository {
                 $row['location'],
                 $row['prod_duration'],
                 $row['category_id'],
+                $row['prod_rate_type'] ?? null,
                 $row['category_name'] ?? null
             );
         }

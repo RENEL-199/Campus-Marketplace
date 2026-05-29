@@ -22,9 +22,9 @@ if (!$order) {
 
 /* ITEMS */
 $stmt = $pdo->prepare("
-    SELECT oi.*, p.name
+    SELECT oi.*, p.prod_name
     FROM order_items oi
-    JOIN products p ON p.id = oi.product_id
+    JOIN products p ON p.prod_id = oi.product_id
     WHERE oi.order_id = ?
 ");
 $stmt->execute([$order_id]);
@@ -32,14 +32,14 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="title">CAMPUS MARKET</div>
-<div style="text-align:center; font-size:12px;">Receipt #<?= $order_id ?></div>
+<div style="text-align:center; font-size:12px;">Receipt #<?= htmlspecialchars($order_id) ?></div>
 
 <hr>
 
 <?php foreach ($items as $item): ?>
 <div class="item">
-    <span><?= $item['name'] ?> x<?= $item['quantity'] ?></span>
-    <span>₱<?= $item['price'] * $item['quantity'] ?></span>
+    <span><?= htmlspecialchars($item['prod_name']) ?> x<?= (int)$item['quantity'] ?></span>
+    <span>₱<?= number_format($item['price'] * $item['quantity'], 2) ?></span>
 </div>
 <?php endforeach; ?>
 

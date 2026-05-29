@@ -11,8 +11,8 @@ $pdo = $db->pdo;
 $order_id = $_GET['id'] ?? null;
 
 /* ORDER INFO */
-$stmt = $pdo->prepare("SELECT * FROM orders WHERE id=?");
-$stmt->execute([$order_id]);
+$stmt = $pdo->prepare("SELECT * FROM orders WHERE id=? AND user_id=?");
+$stmt->execute([$order_id, $user_id]);
 $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$order) {
@@ -22,9 +22,9 @@ if (!$order) {
 
 /* ITEMS */
 $stmt = $pdo->prepare("
-    SELECT oi.*, p.name
+    SELECT oi.*, p.prod_name
     FROM order_items oi
-    JOIN products p ON p.id = oi.product_id
+    JOIN products p ON p.prod_id = oi.product_id
     WHERE oi.order_id = ?
 ");
 $stmt->execute([$order_id]);
@@ -150,7 +150,7 @@ hr {
         <!-- ITEMS -->
         <?php foreach ($items as $item): ?>
             <div class="item">
-                <span><?= $item['name'] ?> x<?= $item['quantity'] ?></span>
+                <span><?= htmlspecialchars($item['prod_name']) ?> x<?= (int)$item['quantity'] ?></span>
                 <span>₱<?= number_format($item['price'] * $item['quantity'], 2) ?></span>
             </div>
         <?php endforeach; ?>

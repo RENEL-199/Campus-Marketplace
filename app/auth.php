@@ -5,11 +5,13 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 function current_user_id() {
-    return $_SESSION['user_id'] ?? null;
+    $userId = $_SESSION['user_id'] ?? null;
+    $userId = is_numeric($userId) ? (int)$userId : null;
+    return ($userId && $userId > 0) ? $userId : null;
 }
 
 function require_login() {
-    if (!isset($_SESSION['user_id'])) {
+    if (current_user_id() === null) {
         header("Location: login.php");
         exit;
     }

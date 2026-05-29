@@ -133,7 +133,8 @@ $stmt = $pdo->prepare("
         c.gender,
         p.prod_name,
         p.prod_price,
-        p.prod_image
+        p.prod_image,
+        p.prod_rate_type
     FROM cart_items c
     JOIN products p ON p.prod_id = c.product_id
     WHERE c.user_id = ?
@@ -141,6 +142,37 @@ $stmt = $pdo->prepare("
 
 $stmt->execute([$user_id]);
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+function getRentalDurationDays(?string $from, ?string $to): int {
+    if (empty($from) || empty($to)) {
+        return 1;
+    }
+
+    $start = strtotime($from);
+    $end = strtotime($to);
+
+    if ($start === false || $end === false || $end < $start) {
+        return 1;
+    }
+
+    $days = (int)floor(($end - $start) / 86400) + 1;
+    return max(1, $days);
+}
+
+function calculateCartSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
+    $duration = getRentalDurationDays($from, $to);
+    $rate = strtolower(trim($rateType ?? ''));
+
+    if ($rate === 'per day') {
+        return $price * $quantity * $duration;
+    }
+
+    if ($rate === 'per hour') {
+        return $price * $quantity * max(1, $duration * 24);
+    }
+
+    return $price * $quantity;
+}
 
 
 /* =========================
@@ -227,12 +259,12 @@ $total = 0;
             display: flex;
             align-items: center;
             margin-bottom: 18px;
+            cursor: pointer;
         }
 
-        .cart-check {
-            width: 18px;
-            margin-right: 14px;
-            accent-color: #6c5aa6;
+        .cart-row.active .cart-item {
+            border-color: #810C01;
+            background: #fff5f2;
         }
 
         .cart-item {
@@ -244,8 +276,21 @@ $total = 0;
             align-items: center;
             padding: 6px;
             background: white;
-            cursor: pointer;
+        }
 
+        .detail-placeholder {
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #444;
+            text-align: center;
+            padding: 32px 18px;
+        }
+
+        .detail-content {
+            display: none;
         }
 
         .cart-item img {
@@ -556,22 +601,32 @@ $total = 0;
             <?php
                 $price = (float)$item['prod_price'];
                 $qty = (int)$item['quantity'];
-                $subtotal = $price * $qty;
+                $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
+                $subtotal = calculateCartSubtotal($price, $qty, $rateType, $item['date_from'], $item['date_to']);
                 $total += $subtotal;
+                $duration = getRentalDurationDays($item['date_from'], $item['date_to']);
+                $durationLabel = '';
+                if (strtolower($rateType) === 'per day') {
+                    $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
+                } elseif (strtolower($rateType) === 'per hour') {
+                    $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
+                }
             ?>
 
-            <div class="cart-row">
-
-                <input type="checkbox"
-                    class="cart-check"
-                    checked
-                    onclick="showDetails(
-                        '<?= htmlspecialchars($item['prod_name'], ENT_QUOTES) ?>',
-                        '<?= $price ?>',
-                        '<?= $qty ?>',
-                        '<?= htmlspecialchars($item['prod_image'], ENT_QUOTES) ?>'
-                    )"
-                >
+            <div 
+                class="cart-row"
+                onclick="selectCartItem(event, this)"
+                data-name="<?= htmlspecialchars($item['prod_name'], ENT_QUOTES) ?>"
+                data-price="<?= $price ?>"
+                data-qty="<?= $qty ?>"
+                data-image="<?= htmlspecialchars($item['prod_image'], ENT_QUOTES) ?>"
+                data-date-from="<?= htmlspecialchars($item['date_from'] ?? '', ENT_QUOTES) ?>"
+                data-date-to="<?= htmlspecialchars($item['date_to'] ?? '', ENT_QUOTES) ?>"
+                data-full-name="<?= htmlspecialchars($item['full_name'] ?? '', ENT_QUOTES) ?>"
+                data-student-no="<?= htmlspecialchars($item['student_no'] ?? '', ENT_QUOTES) ?>"
+                data-age="<?= htmlspecialchars($item['age'] ?? '', ENT_QUOTES) ?>"
+                data-gender="<?= htmlspecialchars($item['gender'] ?? '', ENT_QUOTES) ?>"
+            >
 
                 <div class="cart-item">
 
@@ -579,14 +634,13 @@ $total = 0;
 
                     <div class="cart-info">
                         <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                        <p>Price: ₱<?= number_format($price, 2) ?></p>
+                        <p>Price: ₱<?= number_format($price, 2) ?> / <?= htmlspecialchars($rateType) ?></p>
                         <p>Quantity: <?= $qty ?></p>
-
-                             <!-- ✅ RENTAL DATA DISPLAY -->
-                        
+                        <?php if (!empty($durationLabel)): ?>
+                            <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+                        <?php endif; ?>
+                        <p><strong>Subtotal: ₱<?= number_format($subtotal, 2) ?></strong></p>
                     </div>
-
-                    
 
                     <a class="remove-btn"
                        href="cart.php?remove=<?= $item['product_id'] ?>">
@@ -603,8 +657,8 @@ $total = 0;
                 Total: ₱<?= number_format($total, 2) ?>
             </div>
 
-            <button class="checkout-btn" type="button" onclick="openReceiptModal()">
-                Place Order
+            <button class="checkout-btn" type="button" onclick="window.location.href='checkout.php'">
+                Checkout
             </button>
         </div>
     </div>
@@ -614,42 +668,46 @@ $total = 0;
 
     <div class="right-panel">
 
-        <div class="preview-img">
-            <img id="detailImage" src="<?= htmlspecialchars($items[0]['prod_image']) ?>">
+        <div class="detail-placeholder" id="detailPlaceholder">
+            <h3>Select a cart item to view details</h3>
+            <p>Click any item on the left to preview it here.</p>
         </div>
 
-        <div class="details">
-            <h3>Details</h3>
-            <p>Item Name: <span id="detailName"><?= htmlspecialchars($items[0]['prod_name']) ?></span></p>
-            <p>Price: ₱<span id="detailPrice"><?= $items[0]['prod_price'] ?></span></p>
-        </div>
+        <div class="detail-content" id="detailContent" style="display:none;">
+            <div class="preview-img">
+                <img id="detailImage" src="" alt="Selected item">
+            </div>
 
-        <div class="qty-control">
-            Quantity:
-            <button type="button" onclick="minusQty()">−</button>
-            <span class="qty-num" id="detailQty"><?= $items[0]['quantity'] ?></span>
-            <button type="button" onclick="plusQty()">+</button>
-        </div>
+            <div class="details">
+                <h3>Details</h3>
+                <p>Item Name: <span id="detailName"></span></p>
+                <p>Price: ₱<span id="detailPrice"></span></p>
+            </div>
 
-   <div class="date-row">
-    From:
-    <input type="date" id="fromDate"
-        value="<?= htmlspecialchars($item['date_from'] ?? '') ?>">
+            <div class="qty-control">
+                Quantity:
+                <button type="button" onclick="minusQty()">−</button>
+                <span class="qty-num" id="detailQty">0</span>
+                <button type="button" onclick="plusQty()">+</button>
+            </div>
 
-    To:
-    <input type="date" id="toDate"
-        value="<?= htmlspecialchars($item['date_to'] ?? '') ?>">
-</div>
+            <div class="date-row" id="detailDateRow" style="display:none;">
+                From:
+                <input type="date" id="fromDate" readonly>
+                To:
+                <input type="date" id="toDate" readonly>
+            </div>
 
-        <div class="borrower">
-            <h3>Borrower Information</h3>
+            <div class="borrower" id="borrowerSection" style="display:none;">
+                <h3>Borrower Information</h3>
 
-            <input type="text" id="borrowerName" placeholder=<?= htmlspecialchars($item['full_name']) ?>>
-            <input type="text" id="studentNo" placeholder=<?= htmlspecialchars($item['student_no']) ?>>
+                <input type="text" id="borrowerName" placeholder="Full Name" readonly>
+                <input type="text" id="studentNo" placeholder="Student No." readonly>
 
-            <div class="two-input">
-                <input type="text" id="age" placeholder=<?= htmlspecialchars($item['age']) ?>>
-                <input type="text" id="gender" placeholder=<?= htmlspecialchars($item['gender']) ?>>
+                <div class="two-input">
+                    <input type="text" id="age" placeholder="Age" readonly>
+                    <input type="text" id="gender" placeholder="Gender" readonly>
+                </div>
             </div>
         </div>
 
@@ -660,27 +718,67 @@ $total = 0;
 </div>
 
 <script>
-function showDetails(name, price, qty, image) {
-    document.getElementById("detailName").innerText = name;
-    document.getElementById("detailPrice").innerText = price;
-    document.getElementById("detailQty").innerText = qty;
-    document.getElementById("detailImage").src = image;
+function selectCartItem(event, row) {
+    if (event.target.closest('.remove-btn')) {
+        return;
+    }
+
+    const details = {
+        name: row.dataset.name || '',
+        price: row.dataset.price || '0.00',
+        qty: row.dataset.qty || '0',
+        image: row.dataset.image || '',
+        dateFrom: row.dataset.dateFrom || '',
+        dateTo: row.dataset.dateTo || '',
+        fullName: row.dataset.fullName || '',
+        studentNo: row.dataset.studentNo || '',
+        age: row.dataset.age || '',
+        gender: row.dataset.gender || ''
+    };
+
+    const placeholder = document.getElementById('detailPlaceholder');
+    const content = document.getElementById('detailContent');
+    const dateRow = document.getElementById('detailDateRow');
+    const borrowerSection = document.getElementById('borrowerSection');
+
+    document.getElementById('detailName').innerText = details.name;
+    document.getElementById('detailPrice').innerText = parseFloat(details.price).toFixed(2);
+    document.getElementById('detailQty').innerText = details.qty;
+    document.getElementById('detailImage').src = details.image;
+    document.getElementById('fromDate').value = details.dateFrom;
+    document.getElementById('toDate').value = details.dateTo;
+    document.getElementById('borrowerName').value = details.fullName;
+    document.getElementById('studentNo').value = details.studentNo;
+    document.getElementById('age').value = details.age;
+    document.getElementById('gender').value = details.gender;
+
+    const hasRentalInfo = Boolean(details.dateFrom || details.dateTo || details.fullName || details.studentNo || details.age || details.gender);
+
+    dateRow.style.display = hasRentalInfo ? 'flex' : 'none';
+    borrowerSection.style.display = hasRentalInfo ? 'block' : 'none';
+
+    placeholder.style.display = 'none';
+    content.style.display = 'block';
+
+    document.querySelectorAll('.cart-row').forEach(item => {
+        item.classList.toggle('active', item === row);
+    });
 }
 
 function plusQty() {
-    let qtyBox = document.getElementById("detailQty");
-    qtyBox.innerText = parseInt(qtyBox.innerText || 0) + 1;
+    const qtyBox = document.getElementById('detailQty');
+    qtyBox.innerText = parseInt(qtyBox.innerText || 0, 10) + 1;
 }
 
 function minusQty() {
-    let qtyBox = document.getElementById("detailQty");
-    let qty = parseInt(qtyBox.innerText || 0);
-    if (qty > 1) qtyBox.innerText = qty - 1;
+    const qtyBox = document.getElementById('detailQty');
+    const qty = parseInt(qtyBox.innerText || 0, 10);
+    if (qty > 1) {
+        qtyBox.innerText = qty - 1;
+    }
 }
 
-function openReceiptModal() {
-    alert("You can now connect this to orders table 👍");
-}
+
 </script>
 
 </body>

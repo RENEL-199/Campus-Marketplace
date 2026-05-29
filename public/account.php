@@ -1,34 +1,46 @@
 <?php
+require_once __DIR__ . '/../app/Database.php';
 require_once __DIR__ . '/../app/auth.php';
+
 require_login();
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+$user_id = current_user_id();
+$db = new Database();
+$pdo = $db->pdo;
+
+$stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user) {
+    session_destroy();
+    header('Location: login.php');
+    exit;
 }
 
-if (!isset($_SESSION['profile'])) {
-    $_SESSION['profile'] = [
-        'full_name' => '',
-        'username' => $_SESSION['username'] ?? '',
-        'student_id' => '',
-        'address' => '',
-        'contact_number' => '',
-        'email' => '',
-        'birthday' => '',
-        'gender' => '',
-        'profile_picture' => ''
-    ];
-}
+$profile = [
+    'full_name' => $user['course'] ?? '',
+    'username' => $user['user_name'] ?? '',
+    'student_id' => $user['stud_id'] ?? '',
+    'address' => $user['address'] ?? '',
+    'contact_number' => $user['contact_number'] ?? '',
+    'email' => $user['email'] ?? '',
+    'birthday' => $user['birthday'] ?? '',
+    'gender' => $user['gender'] ?? '',
+    'profile_picture' => $user['profile_pic'] ?? ''
+];
+
+$success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $_SESSION['profile']['full_name'] = $_POST['full_name'] ?? '';
-    $_SESSION['profile']['username'] = $_POST['username'] ?? '';
-    $_SESSION['profile']['student_id'] = $_POST['student_id'] ?? '';
-    $_SESSION['profile']['address'] = $_POST['address'] ?? '';
-    $_SESSION['profile']['contact_number'] = $_POST['contact_number'] ?? '';
-    $_SESSION['profile']['email'] = $_POST['email'] ?? '';
-    $_SESSION['profile']['birthday'] = $_POST['birthday'] ?? '';
-    $_SESSION['profile']['gender'] = $_POST['gender'] ?? '';
+    $profile['full_name'] = trim($_POST['full_name'] ?? '');
+    $profile['username'] = trim($_POST['username'] ?? '');
+    $profile['student_id'] = trim($_POST['student_id'] ?? '');
+    $profile['address'] = trim($_POST['address'] ?? '');
+    $profile['contact_number'] = trim($_POST['contact_number'] ?? '');
+    $profile['email'] = trim($_POST['email'] ?? '');
+    $profile['birthday'] = trim($_POST['birthday'] ?? '');
+    $profile['gender'] = trim($_POST['gender'] ?? '');
 
     if (!empty($_FILES['profile_picture']['name'])) {
         $uploadDir = __DIR__ . '/uploads/profile/';
@@ -41,17 +53,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetPath = $uploadDir . $fileName;
 
         if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $targetPath)) {
-            $_SESSION['profile']['profile_picture'] = 'uploads/profile/' . $fileName;
+            $profile['profile_picture'] = 'uploads/profile/' . $fileName;
         }
     }
 
-    header("Location: profile.php");
-    exit;
+    $update = $pdo->prepare("UPDATE users SET user_name = ?, stud_id = ?, profile_pic = ?, course = ?, address = ?, contact_number = ?, email = ?, birthday = ?, gender = ? WHERE user_id = ?");
+    $update->execute([
+        $profile['username'],
+        $profile['student_id'],
+        $profile['profile_picture'],
+        $profile['full_name'],
+        $profile['address'],
+        $profile['contact_number'],
+        $profile['email'],
+        $profile['birthday'],
+        $profile['gender'],
+        $user_id
+    ]);
+
+    $_SESSION['user_name'] = $profile['username'];
+    $success = true;
 }
 
-$profile = $_SESSION['profile'];
-
-$displayName = !empty($profile['full_name']) ? $profile['full_name'] : 'User Name';
+$displayName = !empty($profile['full_name']) ? $profile['full_name'] : ($profile['username'] ?: 'User Name');
 $studentNo = !empty($profile['student_id']) ? $profile['student_id'] : 'Student No.';
 ?>
 
@@ -200,11 +224,17 @@ input, select {
         <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
         <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
         <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
-        <a href="profile.php"><i class="fa-solid fa-user"></i></a>
+        <a href="account.php"><i class="fa-solid fa-user"></i></a>
     </div>
 </nav>
 
 <div class="profile-container">
+
+    <?php if ($success): ?>
+        <div style="padding: 12px 18px; margin-bottom: 16px; background: #e6ffec; border: 1px solid #8ccf8a; color: #1f6d2b; border-radius: 10px;">
+            Profile updated successfully.
+        </div>
+    <?php endif; ?>
 
     <div class="profile-top">
         <?php if (!empty($profile['profile_picture'])): ?>

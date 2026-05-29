@@ -11,6 +11,7 @@ public function __construct(
     public ?string $location,
     public ?string $prod_duration,
     public ?int $category_id,
+    public ?string $prod_rate_type = null,
     public ?string $category_name = null
 ) {}
 

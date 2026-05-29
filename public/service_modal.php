@@ -135,7 +135,7 @@ if (!$service) {
 
                     <input 
                         type="number" 
-                        name="copies" 
+                        name="quantity" 
                         id="serviceQty"
                         class="service-qty-input"
                         value="1"

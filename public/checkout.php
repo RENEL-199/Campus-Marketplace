@@ -1,27 +1,58 @@
 <?php
+require_once __DIR__ . '/../app/Database.php';
+require_once __DIR__ . '/../app/auth.php';
 
-$items = [
-    [
-        "name" => "Item Name",
-        "price" => "",
-        "quantity" => "",
-        "image" => ""
-    ],
-    [
-        "name" => "Item Name",
-        "price" => "",
-        "quantity" => "",
-        "image" => ""
-    ],
-    [
-        "name" => "Item Name",
-        "price" => "",
-        "quantity" => "",
-        "image" => ""
-    ]
-];
+require_login();
 
-$total = "";
+$db = new Database();
+$pdo = $db->pdo;
+
+$user_id = current_user_id();
+
+$stmt = $pdo->prepare("SELECT c.*, p.prod_name, p.prod_price, p.prod_image, p.prod_rate_type FROM cart_items c JOIN products p ON p.prod_id = c.product_id WHERE c.user_id = ?");
+$stmt->execute([$user_id]);
+$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+function getRentalDurationDays(?string $from, ?string $to): int {
+    if (empty($from) || empty($to)) {
+        return 1;
+    }
+
+    $start = strtotime($from);
+    $end = strtotime($to);
+
+    if ($start === false || $end === false || $end < $start) {
+        return 1;
+    }
+
+    return max(1, (int)floor(($end - $start) / 86400) + 1);
+}
+
+function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
+    $duration = getRentalDurationDays($from, $to);
+    $rate = strtolower(trim($rateType ?? ''));
+
+    if ($rate === 'per day') {
+        return $price * $quantity * $duration;
+    }
+
+    if ($rate === 'per hour') {
+        return $price * $quantity * max(1, $duration * 24);
+    }
+
+    return $price * $quantity;
+}
+
+$total = 0;
+foreach ($items as $item) {
+    $total += calculateCheckoutSubtotal(
+        (float)$item['prod_price'],
+        (int)$item['quantity'],
+        $item['prod_rate_type'] ?? null,
+        $item['date_from'] ?? null,
+        $item['date_to'] ?? null
+    );
+}
 ?>
 
 <!DOCTYPE html>
@@ -185,6 +216,16 @@ nav i {
     cursor:pointer;
 }
 
+.payment-buttons button.active{
+    background:#b64d42;
+    color:white;
+    border-color:#990b00;
+}
+
+.payment-buttons button:hover{
+    border-color:#990b00;
+}
+
 /* BOTTOM */
 
 .bottom-row{
@@ -286,21 +327,45 @@ nav i {
 
         <div class="items-list">
 
-            <?php foreach($items as $item): ?>
+            <?php if (empty($items)): ?>
+                <p>Your cart is empty.</p>
+            <?php else: ?>
 
-            <div class="checkout-item">
+                <?php foreach($items as $item): ?>
 
-                <div class="img-box"></div>
+                <div class="checkout-item">
 
-                <div class="item-info">
-                    <h3>Item Name</h3>
-                    <p>Price:</p>
-                    <p>Quantity:</p>
+                    <div class="img-box">
+                        <?php if (!empty($item['prod_image'])): ?>
+                            <img src="<?= htmlspecialchars($item['prod_image']) ?>" alt="<?= htmlspecialchars($item['prod_name']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="item-info">
+                        <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
+                        <p>Price: ₱<?= number_format($item['prod_price'], 2) ?> / <?= htmlspecialchars($item['prod_rate_type'] ?: 'Per Piece') ?></p>
+                        <p>Quantity: <?= (int)$item['quantity'] ?></p>
+                        <?php
+                            $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
+                            $duration = getRentalDurationDays($item['date_from'] ?? null, $item['date_to'] ?? null);
+                            $durationLabel = '';
+                            if (strtolower($rateType) === 'per day') {
+                                $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
+                            } elseif (strtolower($rateType) === 'per hour') {
+                                $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
+                            }
+                        ?>
+                        <?php if (!empty($durationLabel)): ?>
+                            <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+                        <?php endif; ?>
+                        <p><strong>Subtotal: ₱<?= number_format(calculateCheckoutSubtotal((float)$item['prod_price'], (int)$item['quantity'], $item['prod_rate_type'] ?? null, $item['date_from'] ?? null, $item['date_to'] ?? null), 2) ?></strong></p>
+                    </div>
+
                 </div>
 
-            </div>
+                <?php endforeach; ?>
 
-            <?php endforeach; ?>
+            <?php endif; ?>
 
         </div>
 
@@ -310,111 +375,63 @@ nav i {
 
             <h2>Information:</h2>
 
-            <input type="text" id="receiverName" placeholder="Receiving Person">
+            <form method="POST" action="place_order.php">
 
-            <input type="text" id="receiverAddress" placeholder="Receiving Address">
+                <input type="text" name="fullname" id="receiverName" placeholder="Receiving Person" required>
 
-            <input type="text" id="receiverContact" placeholder="Contact Number">
+                <input type="text" name="address" id="receiverAddress" placeholder="Receiving Address" required>
 
-            <div class="payment-title">
-                Payment Method
-            </div>
+                <input type="text" name="phone" id="receiverContact" placeholder="Contact Number" required>
 
-            <div class="payment-buttons">
+                <div class="payment-title">
+                    Payment Method
+                </div>
 
-                <button type="button" onclick="selectPayment('Cash on Delivery')">
-                    Cash on Delivery
-                </button>
+                <div class="payment-buttons">
+                    <button type="button" class="payment-option active" onclick="selectPayment('Cash on Delivery', this)">
+                        Cash on Delivery
+                    </button>
 
-                <button type="button" onclick="selectPayment('Gcash')">
-                    Gcash
-                </button>
+                    <button type="button" class="payment-option" onclick="selectPayment('Gcash', this)">
+                        Gcash
+                    </button>
+                </div>
 
-            </div>
+                <input type="hidden" name="payment_method" id="paymentMethod" value="Cash on Delivery">
+                <input type="hidden" name="total" value="<?= htmlspecialchars($total, ENT_QUOTES) ?>">
+
+                <div class="bottom-row">
+
+                    <div class="total">
+                        Total: ₱<?= number_format($total, 2) ?>
+                    </div>
+
+                    <button class="place-btn" type="submit" <?= empty($items) ? 'disabled' : '' ?>>
+                        PLACE ORDER
+                    </button>
+
+                </div>
+
+            </form>
 
         </div>
 
     </div>
 
-    <div class="bottom-row">
+    <?php if (empty($items)): ?>
+        <p style="margin-top: 20px; color: #900;">Your cart is empty. Add items to cart before checking out.</p>
+    <?php endif; ?>
 
-        <div class="total">
-            Total:
-        </div>
-
-        <button class="place-btn" type="button" onclick="openReceiptModal()">
-            PLACE ORDER
-        </button>
-
-    </div>
-
-</div>
-
-<div class="receipt-modal" id="receiptModal">
-    <div class="receipt-box">
-
-        <span class="close-modal" onclick="closeReceiptModal()">×</span>
-
-        <h2 style="text-align:center;">Receipt</h2>
-
-        <div class="receipt-section">
-            <h3>Receiver Information</h3>
-            <p><b>Name:</b> <span id="receiptName"></span></p>
-            <p><b>Address:</b> <span id="receiptAddress"></span></p>
-            <p><b>Contact:</b> <span id="receiptContact"></span></p>
-            <p><b>Payment:</b> <span id="receiptPayment"></span></p>
-        </div>
-
-        <div class="receipt-section">
-            <h3>Order Summary</h3>
-            <p><b>Item:</b> Item Name</p>
-            <p><b>Price:</b></p>
-            <p><b>Quantity:</b></p>
-            <p><b>Total:</b> <span id="receiptTotal"></span></p>
-        </div>
-
-        <button class="confirm-btn" onclick="window.location.href='orders.php'">
-            Confirm Order
-        </button>
-
-    </div>
 </div>
 
 <script>
-let selectedPayment = "";
-
-function selectPayment(payment) {
-    selectedPayment = payment;
-    alert(payment + " selected");
+function selectPayment(method, element) {
+    document.getElementById('paymentMethod').value = method;
+    document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('active'));
+    if (element) {
+        element.classList.add('active');
+    }
 }
-
-function openReceiptModal() {
-    document.getElementById("receiptName").innerText =
-        document.getElementById("receiverName").value;
-
-    document.getElementById("receiptAddress").innerText =
-        document.getElementById("receiverAddress").value;
-
-    document.getElementById("receiptContact").innerText =
-        document.getElementById("receiverContact").value;
-
-    document.getElementById("receiptPayment").innerText =
-        selectedPayment;
-
-    document.getElementById("receiptTotal").innerText =
-        "₱0.00";
-
-    document.getElementById("receiptModal").style.display =
-        "flex";
-}
-
-function closeReceiptModal() {
-    document.getElementById("receiptModal").style.display =
-        "none";
-}
-
-
-
 </script>
 
 </body>

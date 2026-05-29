@@ -50,7 +50,8 @@ $stock = (int)$rental->prod_stock;
             </div>
 
             <div class="rental-price">
-                ₱ <?= number_format($rental->prod_price, 0) ?><span>/day</span>
+                ₱ <?= number_format($rental->prod_price, 0) ?>
+                <span>/<?= htmlspecialchars($rental->prod_rate_type ?: 'Day') ?></span>
             </div>
 
             <p class="rental-owner">
@@ -81,6 +82,7 @@ $stock = (int)$rental->prod_stock;
     <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
 
     <input type="hidden" name="is_rental" value="1">
+    <input type="hidden" name="rate_type" id="rateTypeInput" value="<?= htmlspecialchars($rental->prod_rate_type ?: 'Per Day', ENT_QUOTES) ?>">
 
     <div class="borrow-quantity-row">
         <label>Quantity:</label>
@@ -96,15 +98,20 @@ $stock = (int)$rental->prod_stock;
             max="<?= $stock ?>"
         >
 
-        <button type="button" id="borrowPlusBtn">+</button>
+        <button type="button" id="borrowPlusBtn" data-max-stock="<?= $stock ?>">+</button>
     </div>
 
     <div class="date-row">
         <label>From:</label>
-        <input type="date" name="date_from" required>
+        <input type="date" name="date_from" id="dateFrom" required>
 
         <label>To</label>
-        <input type="date" name="date_to" required>
+        <input type="date" name="date_to" id="dateTo" required>
+    </div>
+
+    <div class="rental-total-row">
+        <strong>Total:</strong>
+        <span id="rentalTotal">₱<?= number_format($rental->prod_price, 2) ?></span>
     </div>
 
     <h4>Borrower Information</h4>
@@ -125,3 +132,64 @@ $stock = (int)$rental->prod_stock;
     </div>
 
 </div>
+
+<script>
+(function() {
+    const price = <?= json_encode((float)$rental->prod_price) ?>;
+    const rateType = <?= json_encode($rental->prod_rate_type ?? 'Per Day') ?>;
+    const qtyInput = document.getElementById('borrowQty');
+    const dateFromInput = document.getElementById('dateFrom');
+    const dateToInput = document.getElementById('dateTo');
+    const totalLabel = document.getElementById('rentalTotal');
+    const rateTypeInput = document.getElementById('rateTypeInput');
+
+    function parseDateIso(value) {
+        if (!value) {
+            return null;
+        }
+
+        const parts = value.split('-').map(Number);
+        if (parts.length !== 3) {
+            return null;
+        }
+
+        return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    }
+
+    function getDurationDays(from, to) {
+        const start = parseDateIso(from);
+        const end = parseDateIso(to);
+
+        if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+            return 1;
+        }
+
+        const diffMs = end.getTime() - start.getTime();
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+        return Math.max(1, days);
+    }
+
+    function updateTotal() {
+        const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+        const days = getDurationDays(dateFromInput.value, dateToInput.value);
+        let subtotal = price * qty;
+
+        if (rateType.toLowerCase() === 'per day') {
+            subtotal = subtotal * days;
+        } else if (rateType.toLowerCase() === 'per hour') {
+            subtotal = subtotal * Math.max(1, days * 24);
+        }
+
+        totalLabel.textContent = '₱' + subtotal.toFixed(2);
+        rateTypeInput.value = rateType;
+    }
+
+    qtyInput.addEventListener('input', updateTotal);
+    dateFromInput.addEventListener('input', updateTotal);
+    dateToInput.addEventListener('input', updateTotal);
+    qtyInput.addEventListener('change', updateTotal);
+    dateFromInput.addEventListener('change', updateTotal);
+    dateToInput.addEventListener('change', updateTotal);
+    updateTotal();
+})();
+</script>

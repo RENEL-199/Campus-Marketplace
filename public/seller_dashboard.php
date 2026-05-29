@@ -12,6 +12,16 @@ $user_id = current_user_id();
 $db = new Database();
 $pdo = $db->pdo;
 
+// Validate that the logged-in user still exists in the database.
+$checkUser = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ?");
+$checkUser->execute([$user_id]);
+
+if (!$checkUser->fetchColumn()) {
+    session_destroy();
+    header("Location: login.php");
+    exit;
+}
+
 $repo = new ProductRepository();
 
 /* =========================
@@ -479,6 +489,12 @@ button {
     background: white;
 }
 
+.product.sold-out {
+    opacity: 0.7;
+    border-color: #c33;
+    background: #ffebeb;
+}
+
 .product img {
     width: 34px;
     height: 34px;
@@ -691,7 +707,7 @@ button {
 
 <?php foreach ($products as $p): ?>
 
-<div class="product"
+<div class="product<?= $p->prod_stock <= 0 ? ' sold-out' : '' ?>"
     data-id="<?= $p->prod_id ?>"
     data-name="<?= htmlspecialchars($p->prod_name) ?>"
     data-description="<?= htmlspecialchars($p->prod_desc ?? '') ?>"
@@ -708,6 +724,9 @@ button {
     <div>
         <strong><?= htmlspecialchars($p->prod_name) ?></strong><br>
         ₱<?= $p->prod_price ?> | Stock: <?= $p->prod_stock ?>
+        <?php if ($p->prod_stock <= 0): ?>
+            <div style="color:#c00;font-weight:700;margin-top:4px;">SOLD OUT</div>
+        <?php endif; ?>
     </div>
 
 </div>
