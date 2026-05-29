@@ -90,8 +90,7 @@ if (!$service) {
 
         <h3>Service Form</h3>
 
-        <form method="POST" action="service_request.php" enctype="multipart/form-data">
-
+        <form method="POST" action="cart.php" enctype="multipart/form-data">
             <input 
                 type="hidden" 
                 name="product_id" 

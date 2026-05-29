@@ -77,67 +77,50 @@ $stock = (int)$rental->prod_stock;
     <div class="borrow-form-box borrow-form-centered" id="borrowFormBox">
 
         <h3>Borrow Form</h3>
+        <form method="POST" action="cart.php">
+    <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
 
-        <form method="POST" action="rental_request.php">
+    <input type="hidden" name="is_rental" value="1">
 
-            <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
+    <div class="borrow-quantity-row">
+        <label>Quantity:</label>
 
-            <div class="borrow-details-box">
-                <h4>Details</h4>
-                <p>Item Name: <?= htmlspecialchars($rental->prod_name) ?></p>
-                <p>Price: ₱<?= number_format($rental->prod_price, 0) ?>/day</p>
-                <p>Seller:</p>
-            </div>
+        <button type="button" id="borrowMinusBtn">−</button>
 
-            <div class="borrow-quantity-row">
-                <label>Quantity:</label>
+        <input 
+            type="number" 
+            name="quantity" 
+            id="borrowQty" 
+            value="1" 
+            min="1" 
+            max="<?= $stock ?>"
+        >
 
-                <button type="button" class="borrow-qty-btn" id="borrowMinusBtn">
-                    −
-                </button>
+        <button type="button" id="borrowPlusBtn">+</button>
+    </div>
 
-                <input 
-                    type="number" 
-                    name="quantity" 
-                    id="borrowQty" 
-                    value="1" 
-                    min="1" 
-                    max="<?= $stock ?>"
-                >
+    <div class="date-row">
+        <label>From:</label>
+        <input type="date" name="date_from" required>
 
-                <button 
-                    type="button" 
-                    class="borrow-qty-btn" 
-                    id="borrowPlusBtn"
-                    data-max-stock="<?= $stock ?>"
-                >
-                    +
-                </button>
-            </div>
+        <label>To</label>
+        <input type="date" name="date_to" required>
+    </div>
 
-            <div class="date-row">
-                <label>From:</label>
-                <input type="date" name="date_from" required>
+    <h4>Borrower Information</h4>
 
-                <label>To</label>
-                <input type="date" name="date_to" required>
-            </div>
+    <input type="text" name="full_name" placeholder="Full Name" required>
+    <input type="text" name="student_no" placeholder="Student No." required>
 
-            <h4>Borrower Information</h4>
+    <div class="borrow-two-inputs">
+        <input type="number" name="age" placeholder="Age" required>
+        <input type="text" name="gender" placeholder="Gender" required>
+    </div>
 
-            <input type="text" name="full_name" placeholder="Full Name" required>
-            <input type="text" name="student_no" placeholder="Student No." required>
-
-            <div class="borrow-two-inputs">
-                <input type="number" name="age" placeholder="Age" required>
-                <input type="text" name="gender" placeholder="Gender" required>
-            </div>
-
-            <button type="submit" class="confirm-rent-btn">
-                Confirm Request
-            </button>
-
-        </form>
+    <button type="submit" class="confirm-rent-btn">
+        Confirm Request
+    </button>
+</form>
 
     </div>
 
