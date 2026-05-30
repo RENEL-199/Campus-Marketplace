@@ -13,12 +13,7 @@ if (!$id) {
 
 $rental = null;
 
-foreach ($repo->getAll() as $p) {
-    if ((int)$p->prod_id === (int)$id) {
-        $rental = $p;
-        break;
-    }
-}
+$rental = $repo->getById((int)$id);
 
 if (!$rental) {
     echo "<p>Rental not found</p>";
@@ -51,11 +46,11 @@ $stock = (int)$rental->prod_stock;
 
             <div class="rental-price">
                 ₱ <?= number_format($rental->prod_price, 0) ?>
-                <span>/<?= htmlspecialchars(strtolower(trim($rental->prod_rate_type ?? '')) === 'per hour' ? 'Per Day' : ($rental->prod_rate_type ?: 'Day')) ?></span>
+                <span>/<?= htmlspecialchars($rental->prod_rate_type ?: 'Day') ?></span>
             </div>
 
             <p class="rental-owner">
-                <strong>Owner:</strong>
+                <strong>Owner:</strong> <?= htmlspecialchars($rental->seller_name ?? 'Unknown Seller') ?>
             </p>
 
             <p class="rental-stock">
@@ -82,7 +77,7 @@ $stock = (int)$rental->prod_stock;
     <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
 
     <input type="hidden" name="is_rental" value="1">
-    <input type="hidden" name="rate_type" id="rateTypeInput" value="<?= htmlspecialchars(strtolower(trim($rental->prod_rate_type ?? '')) === 'per hour' ? 'Per Day' : ($rental->prod_rate_type ?: 'Per Day'), ENT_QUOTES) ?>">
+    <input type="hidden" name="rate_type" id="rateTypeInput" value="<?= htmlspecialchars($rental->prod_rate_type ?: 'Per Day', ENT_QUOTES) ?>">
 
     <div class="borrow-quantity-row">
         <label>Quantity:</label>
@@ -136,7 +131,7 @@ $stock = (int)$rental->prod_stock;
 <script>
 (function() {
     const price = <?= json_encode((float)$rental->prod_price) ?>;
-    const rateType = <?= json_encode(strtolower(trim($rental->prod_rate_type ?? '')) === 'per hour' ? 'Per Day' : ($rental->prod_rate_type ?? 'Per Day')) ?>;
+    const rateType = <?= json_encode($rental->prod_rate_type ?? 'Per Day') ?>;
     const qtyInput = document.getElementById('borrowQty');
     const dateFromInput = document.getElementById('dateFrom');
     const dateToInput = document.getElementById('dateTo');
@@ -176,6 +171,9 @@ $stock = (int)$rental->prod_stock;
 
         if (rateType.toLowerCase() === 'per day') {
             subtotal = subtotal * days;
+        } else if (rateType.toLowerCase() === 'per hour') {
+            subtotal = subtotal * Math.max(1, days * 24);
+        }
 
         totalLabel.textContent = '₱' + subtotal.toFixed(2);
         rateTypeInput.value = rateType;

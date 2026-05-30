@@ -29,10 +29,13 @@ class ProductRepository {
                 p.prod_duration,
                 p.prod_rate_type,
                 p.category_id,
-                c.category_name
+                c.category_name,
+                u.user_name AS seller_name
             FROM products p
             LEFT JOIN categories c 
                 ON p.category_id = c.category_id
+            LEFT JOIN users u
+                ON p.user_id = u.user_id
             WHERE p.prod_stock > 0
             ORDER BY p.prod_id DESC
         ");
@@ -57,10 +60,13 @@ class ProductRepository {
                 p.prod_duration,
                 p.prod_rate_type,
                 p.category_id,
-                c.category_name
+                c.category_name,
+                u.user_name AS seller_name
             FROM products p
             LEFT JOIN categories c 
                 ON p.category_id = c.category_id
+            LEFT JOIN users u
+                ON p.user_id = u.user_id
             WHERE p.prod_id = ?
             LIMIT 1
         ");
@@ -93,10 +99,13 @@ class ProductRepository {
                 p.prod_duration,
                 p.prod_rate_type,
                 p.category_id,
-                c.category_name
+                c.category_name,
+                u.user_name AS seller_name
             FROM products p
             LEFT JOIN categories c 
                 ON p.category_id = c.category_id
+            LEFT JOIN users u
+                ON p.user_id = u.user_id
             WHERE p.user_id = ?
             ORDER BY p.prod_id DESC
         ");
@@ -174,7 +183,8 @@ class ProductRepository {
                 $row['prod_duration'] ?? null,
                 isset($row['category_id']) ? (int)$row['category_id'] : null,
                 $row['prod_rate_type'] ?? null,
-                $row['category_name'] ?? null
+                $row['category_name'] ?? null,
+                $row['seller_name'] ?? null
             );
         }
 

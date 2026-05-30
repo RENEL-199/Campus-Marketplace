@@ -9,22 +9,18 @@ $pdo = $db->pdo;
 
 $user_id = current_user_id();
 
-$selected_items = $_POST['selected_items'] ?? $_GET['selected_items'] ?? [];
+$selectedItems = $_POST['selected_items'] ?? $_SESSION['checkout_selected_items'] ?? [];
+$selectedItems = array_values(array_unique(array_filter(array_map('intval', (array)$selectedItems), fn($id) => $id > 0)));
 
-if (!is_array($selected_items)) {
-    $selected_items = [$selected_items];
-}
-
-$selected_items = array_values(array_unique(array_filter(array_map('intval', $selected_items), function ($id) {
-    return $id > 0;
-})));
-
-if (empty($selected_items)) {
-    header('Location: cart.php?checkout_error=no_selected');
+if (empty($selectedItems)) {
+    header('Location: cart.php?select_error=1');
     exit;
 }
 
-$placeholders = implode(',', array_fill(0, count($selected_items), '?'));
+$_SESSION['checkout_selected_items'] = $selectedItems;
+
+$placeholders = implode(',', array_fill(0, count($selectedItems), '?'));
+$params = array_merge([$user_id], $selectedItems);
 
 $stmt = $pdo->prepare("
     SELECT c.*, p.prod_name, p.prod_price, p.prod_image, p.prod_rate_type
@@ -33,9 +29,14 @@ $stmt = $pdo->prepare("
     WHERE c.user_id = ?
     AND c.product_id IN ($placeholders)
 ");
-
-$stmt->execute(array_merge([$user_id], $selected_items));
+$stmt->execute($params);
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if (empty($items)) {
+    unset($_SESSION['checkout_selected_items']);
+    header('Location: cart.php?select_error=1');
+    exit;
+}
 
 function getRentalDurationDays(?string $from, ?string $to): int
 {
@@ -62,17 +63,11 @@ function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateTyp
         return $price * $quantity * $duration;
     }
 
-    return $price * $quantity;
-}
-
-function decodeServiceFiles(?string $json): array
-{
-    if (empty($json)) {
-        return [];
+    if ($rate === 'per hour') {
+        return $price * $quantity * max(1, $duration * 24);
     }
 
-    $files = json_decode($json, true);
-    return is_array($files) ? $files : [];
+    return $price * $quantity;
 }
 
 $total = 0;
@@ -373,19 +368,9 @@ foreach ($items as $item) {
                             </div>
 
                             <div class="item-info">
-                                <?php
-                                    $serviceFiles = decodeServiceFiles($item['service_files'] ?? null);
-                                    $serviceFileCount = count($serviceFiles);
-                                ?>
                                 <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                                <p>Price: ₱<?= number_format($item['prod_price'], 2) ?> / <?= htmlspecialchars(strtolower(trim($item['prod_rate_type'] ?? '')) === 'per hour' ? 'Per Day' : ($item['prod_rate_type'] ?: 'Per Piece')) ?></p>
+                                <p>Price: ₱<?= number_format($item['prod_price'], 2) ?> / <?= htmlspecialchars($item['prod_rate_type'] ?: 'Per Piece') ?></p>
                                 <p>Quantity: <?= (int)$item['quantity'] ?></p>
-                                <?php if ($serviceFileCount > 0): ?>
-                                    <p>Files uploaded: <?= $serviceFileCount ?></p>
-                                    <?php if (!empty($item['print_type'])): ?>
-                                        <p>Print type: <?= htmlspecialchars($item['print_type']) ?></p>
-                                    <?php endif; ?>
-                                <?php endif; ?>
                                 <?php
                                 $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
                                 $duration = getRentalDurationDays($item['date_from'] ?? null, $item['date_to'] ?? null);
@@ -438,12 +423,11 @@ foreach ($items as $item) {
                         </button>
                     </div>
 
-                    <?php foreach ($selected_items as $selected_id): ?>
-                        <input type="hidden" name="selected_items[]" value="<?= (int)$selected_id ?>">
-                    <?php endforeach; ?>
-
                     <input type="hidden" name="payment_method" id="paymentMethod" value="Cash on Delivery">
                     <input type="hidden" name="total" value="<?= htmlspecialchars($total, ENT_QUOTES) ?>">
+                    <?php foreach ($selectedItems as $selectedId): ?>
+                        <input type="hidden" name="selected_items[]" value="<?= (int)$selectedId ?>">
+                    <?php endforeach; ?>
 
                     <div class="bottom-row">
 

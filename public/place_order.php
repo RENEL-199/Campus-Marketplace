@@ -22,7 +22,7 @@ if (!$checkUser->fetch()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: cart.php');
+    header('Location: checkout.php');
     exit;
 }
 
@@ -30,20 +30,6 @@ $fullname = trim($_POST['fullname'] ?? '');
 $address = trim($_POST['address'] ?? '');
 $phone = trim($_POST['phone'] ?? '');
 $payment_method = trim($_POST['payment_method'] ?? 'Cash on Delivery');
-
-$selected_items = $_POST['selected_items'] ?? [];
-if (!is_array($selected_items)) {
-    $selected_items = [$selected_items];
-}
-
-$selected_items = array_values(array_unique(array_filter(array_map('intval', $selected_items), function ($id) {
-    return $id > 0;
-})));
-
-if (empty($selected_items)) {
-    header('Location: cart.php?checkout_error=no_selected');
-    exit;
-}
 
 if ($fullname === '' || $address === '' || $phone === '') {
     header('Location: checkout.php');
@@ -68,38 +54,20 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS order_items (
     product_id INT NOT NULL,
     quantity INT NOT NULL,
     price DECIMAL(10,2) NOT NULL,
-    rate_type VARCHAR(50) DEFAULT NULL,
-    date_from DATE DEFAULT NULL,
-    date_to DATE DEFAULT NULL,
-    rental_duration INT NOT NULL DEFAULT 1,
-    subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
-    service_files TEXT DEFAULT NULL,
-    print_type VARCHAR(50) DEFAULT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(prod_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-/* Add these columns too if order_items already existed before this fix */
-$columnsToAdd = [
-    "rate_type VARCHAR(50) DEFAULT NULL",
-    "date_from DATE DEFAULT NULL",
-    "date_to DATE DEFAULT NULL",
-    "rental_duration INT NOT NULL DEFAULT 1",
-    "subtotal DECIMAL(10,2) NOT NULL DEFAULT 0",
-    "service_files TEXT DEFAULT NULL",
-    "print_type VARCHAR(50) DEFAULT NULL"
-];
+$selectedItems = $_POST['selected_items'] ?? $_SESSION['checkout_selected_items'] ?? [];
+$selectedItems = array_values(array_unique(array_filter(array_map('intval', (array)$selectedItems), fn($id) => $id > 0)));
 
-foreach ($columnsToAdd as $columnSql) {
-    $columnName = strtok($columnSql, ' ');
-    try {
-        $pdo->exec("ALTER TABLE order_items ADD COLUMN $columnSql");
-    } catch (PDOException $e) {
-        // Column already exists. Ignore.
-    }
+if (empty($selectedItems)) {
+    header('Location: cart.php?select_error=1');
+    exit;
 }
 
-$placeholders = implode(',', array_fill(0, count($selected_items), '?'));
+$placeholders = implode(',', array_fill(0, count($selectedItems), '?'));
+$params = array_merge([$user_id], $selectedItems);
 
 $stmt = $pdo->prepare("
     SELECT c.*, p.prod_name, p.prod_price, p.prod_rate_type
@@ -108,11 +76,12 @@ $stmt = $pdo->prepare("
     WHERE c.user_id = ?
     AND c.product_id IN ($placeholders)
 ");
-$stmt->execute(array_merge([$user_id], $selected_items));
+$stmt->execute($params);
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (empty($items)) {
-    header('Location: cart.php');
+    unset($_SESSION['checkout_selected_items']);
+    header('Location: cart.php?select_error=1');
     exit;
 }
 
@@ -128,25 +97,23 @@ function getRentalDurationDays(?string $from, ?string $to): int {
         return 1;
     }
 
-    // Inclusive count: May 1 to May 2 = 2 days
     $days = (int)floor(($end - $start) / 86400) + 1;
     return max(1, $days);
 }
 
-function rentalUnits(?string $rateType, ?string $from, ?string $to): int {
+function calculateOrderSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
+    $duration = getRentalDurationDays($from, $to);
     $rate = strtolower(trim($rateType ?? ''));
-    $days = getRentalDurationDays($from, $to);
 
-    if ($rate === 'per day' || $rate === 'per hour') {
-        return $days;
+    if ($rate === 'per day') {
+        return $price * $quantity * $duration;
     }
 
-    return 1;
-}
+    if ($rate === 'per hour') {
+        return $price * $quantity * max(1, $duration * 24);
+    }
 
-function calculateOrderSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
-    $units = rentalUnits($rateType, $from, $to);
-    return $price * $quantity * $units;
+    return $price * $quantity;
 }
 
 $total = 0;
@@ -173,7 +140,7 @@ try {
             throw new Exception('Order failed: Product not found.');
         }
 
-        if ((int)$currentStock < (int)$item['quantity']) {
+        if ($currentStock < $item['quantity']) {
             throw new Exception('Order failed: Insufficient stock for ' . $item['prod_name'] . '.');
         }
     }
@@ -190,42 +157,15 @@ try {
 
     $order_id = $pdo->lastInsertId();
 
-    $insertItem = $pdo->prepare("
-        INSERT INTO order_items
-        (order_id, product_id, quantity, price, rate_type, date_from, date_to, rental_duration, subtotal, service_files, print_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-
+    $insertItem = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
     $updateStock = $pdo->prepare("UPDATE products SET prod_stock = prod_stock - ? WHERE prod_id = ?");
 
     foreach ($items as $item) {
-        $rateType = $item['prod_rate_type'] ?? null;
-        if (strtolower(trim((string)$rateType)) === 'per hour') {
-            $rateType = 'Per Day';
-        }
-        $dateFrom = $item['date_from'] ?? null;
-        $dateTo = $item['date_to'] ?? null;
-        $duration = rentalUnits($rateType, $dateFrom, $dateTo);
-        $subtotal = calculateOrderSubtotal(
-            (float)$item['prod_price'],
-            (int)$item['quantity'],
-            $rateType,
-            $dateFrom,
-            $dateTo
-        );
-
         $insertItem->execute([
             $order_id,
             $item['product_id'],
             $item['quantity'],
-            $item['prod_price'],
-            $rateType,
-            $dateFrom,
-            $dateTo,
-            $duration,
-            $subtotal,
-            $item['service_files'] ?? null,
-            $item['print_type'] ?? null
+            $item['prod_price']
         ]);
 
         $updateStock->execute([
@@ -234,10 +174,9 @@ try {
         ]);
     }
 
-    $deletePlaceholders = implode(',', array_fill(0, count($selected_items), '?'));
-    $deleteStmt = $pdo->prepare("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ($deletePlaceholders)");
-    $deleteStmt->execute(array_merge([$user_id], $selected_items));
-
+    $deleteParams = array_merge([$user_id], $selectedItems);
+    $pdo->prepare("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ($placeholders)")->execute($deleteParams);
+    unset($_SESSION['checkout_selected_items']);
     $pdo->commit();
 
     header('Location: receipt.php?id=' . $order_id);

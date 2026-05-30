@@ -108,7 +108,14 @@ $featured_services = filterByCategory($products, [3], $category);
         nav i {
             margin-right: 4px;
             font-size: 13px;
-        }</style>
+        }
+
+        .categories .category.active {
+            background: #810C01 !important;
+            color: #fff !important;
+            border-color: #810C01 !important;
+        }
+        </style>
 </head>
 
 <body>
@@ -191,9 +198,32 @@ $featured_services = filterByCategory($products, [3], $category);
 
             <div class="grid">
 
-                <?php if (empty($featured_services)): ?>
-                    <p>No services found.</p>
-                <?php else: ?>
+                <div class="card">
+                    <img src="uploads/Lost.png" alt="Lost and Found">
+
+                    <div class="card-content">
+                        <div class="card-top-row">
+                            <h3>Lost & Found</h3>
+                            <span class="category-tag">Services</span>
+                        </div>
+
+                        <p class="card-description">
+                            Report or search lost items on campus......
+                            <a href="lost_found.php">read more</a>
+                        </p>
+
+                        <div class="card-price-stock-row">
+                            <div class="price">Free</div>
+                            <div class="stock">Campus</div>
+                        </div>
+
+                        <button type="button" onclick="window.location.href='lost_found.php'">
+                            Open Lost & Found
+                        </button>
+                    </div>
+                </div>
+
+                <?php if (!empty($featured_services)): ?>
                     <?= $view->renderProducts($featured_services); ?>
                 <?php endif; ?>
 
