@@ -659,8 +659,8 @@ $total = 0;
 
                     <div class="cart-info">
                         <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                        <p>Price: ₱<?= number_format($price, 2) ?> / <?= htmlspecialchars($rateType) ?></p>
-                        <p>Quantity: <?= $qty ?></p>
+                     
+                      
                         <?php if (!empty($durationLabel)): ?>
                             <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
                         <?php endif; ?>
