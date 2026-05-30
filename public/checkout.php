@@ -1,13 +1,14 @@
 <?php
 require_once __DIR__ . '/../app/Database.php';
 require_once __DIR__ . '/../app/auth.php';
+require_once __DIR__ . '/../app/CartRepository.php';
 
 require_login();
 
 $db = new Database();
 $pdo = $db->pdo;
-
 $user_id = current_user_id();
+$cartRepo = new CartRepository($pdo);
 
 $selectedItems = $_POST['selected_items'] ?? $_SESSION['checkout_selected_items'] ?? [];
 $selectedItems = array_values(array_unique(array_filter(array_map('intval', (array)$selectedItems), fn($id) => $id > 0)));
@@ -18,19 +19,7 @@ if (empty($selectedItems)) {
 }
 
 $_SESSION['checkout_selected_items'] = $selectedItems;
-
-$placeholders = implode(',', array_fill(0, count($selectedItems), '?'));
-$params = array_merge([$user_id], $selectedItems);
-
-$stmt = $pdo->prepare("
-    SELECT c.*, p.prod_name, p.prod_price, p.prod_image, p.prod_rate_type
-    FROM cart_items c
-    JOIN products p ON p.prod_id = c.product_id
-    WHERE c.user_id = ?
-    AND c.product_id IN ($placeholders)
-");
-$stmt->execute($params);
-$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$items = $cartRepo->getSelectedItems($user_id, $selectedItems);
 
 if (empty($items)) {
     unset($_SESSION['checkout_selected_items']);
@@ -38,50 +27,11 @@ if (empty($items)) {
     exit;
 }
 
-function getRentalDurationDays(?string $from, ?string $to): int
-{
-    if (empty($from) || empty($to)) {
-        return 1;
-    }
-
-    $start = strtotime($from);
-    $end = strtotime($to);
-
-    if ($start === false || $end === false || $end < $start) {
-        return 1;
-    }
-
-    return max(1, (int)floor(($end - $start) / 86400) + 1);
-}
-
-function calculateCheckoutSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float
-{
-    $duration = getRentalDurationDays($from, $to);
-    $rate = strtolower(trim($rateType ?? ''));
-
-    if ($rate === 'per day') {
-        return $price * $quantity * $duration;
-    }
-
-    if ($rate === 'per hour') {
-        return $price * $quantity * max(1, $duration * 24);
-    }
-
-    return $price * $quantity;
-}
-
 $total = 0;
 foreach ($items as $item) {
-    $total += calculateCheckoutSubtotal(
-        (float)$item['prod_price'],
-        (int)$item['quantity'],
-        $item['prod_rate_type'] ?? null,
-        $item['date_from'] ?? null,
-        $item['date_to'] ?? null
-    );
+    $total += CartRepository::subtotal($item);
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 
@@ -373,7 +323,7 @@ foreach ($items as $item) {
                                 <p>Quantity: <?= (int)$item['quantity'] ?></p>
                                 <?php
                                 $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
-                                $duration = getRentalDurationDays($item['date_from'] ?? null, $item['date_to'] ?? null);
+                                $duration = CartRepository::rentalDays($item['date_from'] ?? null, $item['date_to'] ?? null);
                                 $durationLabel = '';
                                 if (strtolower($rateType) === 'per day') {
                                     $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
@@ -384,7 +334,7 @@ foreach ($items as $item) {
                                 <?php if (!empty($durationLabel)): ?>
                                     <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
                                 <?php endif; ?>
-                                <p><strong>Subtotal: ₱<?= number_format(calculateCheckoutSubtotal((float)$item['prod_price'], (int)$item['quantity'], $item['prod_rate_type'] ?? null, $item['date_from'] ?? null, $item['date_to'] ?? null), 2) ?></strong></p>
+                                <p><strong>Subtotal: ₱<?= number_format(CartRepository::subtotal($item), 2) ?></strong></p>
                             </div>
 
                         </div>

@@ -2,7 +2,7 @@
 
 class Database {
     private string $host = "localhost";
-    private string $db = "database1";
+    private string $db = "iskohub";
     private string $user = "root";
     private string $pass = "";
     private string $charset = "utf8mb4";
@@ -10,9 +10,11 @@ class Database {
     public PDO $pdo;
 
     public function __construct() {
-        $dsn = "mysql:host=$this->host;dbname=$this->db;charset=$this->charset";
-
-        $this->pdo = new PDO($dsn, $this->user, $this->pass);
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $dsn = "mysql:host={$this->host};dbname={$this->db};charset={$this->charset}";
+        $this->pdo = new PDO($dsn, $this->user, $this->pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
     }
 }

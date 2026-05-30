@@ -119,8 +119,8 @@ if (strcasecmp($rate_type, "Per Hour") === 0) {
             prod_stock = ?,
             category_id = ?,
             prod_image = ?,
-            prod_location = ?,
-            prod_rate_type = ?
+            location = ?,
+            rate_type = ?
         WHERE prod_id = ? AND user_id = ?
     ");
 
@@ -187,12 +187,13 @@ $stock = (int) $stock;
         $user_id,
         $name,
         $desc,
-        $price,
+        (float)$price,
         $image,
         $stock,
+        $location,
         null,
-        null,
-        $category_id
+        (int)$category_id,
+        $rate_type
     );
 
     $repo->add($product);
@@ -202,7 +203,7 @@ $stock = (int) $stock;
 
 $stmt = $pdo->prepare("
     UPDATE products
-    SET prod_location = ?, prod_rate_type = ?
+    SET location = ?, rate_type = ?
     WHERE prod_id = ? AND user_id = ?
 ");
 
@@ -215,7 +216,7 @@ $stmt->execute([$location, $rate_type, $last_id, $user_id]);
 /* =========================
    GET PRODUCTS
 ========================= */
-$stmt = $pdo->prepare("SELECT * FROM products WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT *, rate_type AS prod_rate_type, location AS prod_location FROM products WHERE user_id = ? AND status <> 'deleted'");
 $stmt->execute([$user_id]);
 $products = $stmt->fetchAll(PDO::FETCH_OBJ);
 

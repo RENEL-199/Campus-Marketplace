@@ -1,0 +1,18 @@
+<svg width="720" height="520" viewBox="0 0 720 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="720" height="520" rx="40" fill="#FFF7F5"/>
+<circle cx="560" cy="120" r="78" fill="#F8D9D5"/>
+<circle cx="130" cy="410" r="95" fill="#F4E7DF"/>
+<rect x="130" y="250" width="420" height="170" rx="26" fill="#8B0D04"/>
+<path d="M175 250h330l-45-82H220l-45 82Z" fill="#B42218"/>
+<path d="M255 160c0-52 42-94 94-94s94 42 94 94v90H255v-90Z" fill="#CBA66A"/>
+<path d="M292 157c0-31 26-57 57-57s57 26 57 57v93H292v-93Z" fill="#FFF7F5"/>
+<rect x="225" y="276" width="75" height="92" rx="14" fill="#FFF7F5"/>
+<rect x="244" y="303" width="38" height="7" rx="3.5" fill="#8B0D04"/>
+<rect x="244" y="321" width="32" height="7" rx="3.5" fill="#8B0D04"/>
+<rect x="374" y="277" width="88" height="88" rx="18" fill="#FFF7F5"/>
+<path d="M401 320h34M418 303v34" stroke="#8B0D04" stroke-width="12" stroke-linecap="round"/>
+<circle cx="500" cy="360" r="28" fill="#FBD7D3"/>
+<path d="M488 360h24M500 348v24" stroke="#8B0D04" stroke-width="8" stroke-linecap="round"/>
+<path d="M181 436h318" stroke="#CBA66A" stroke-width="14" stroke-linecap="round"/>
+<text x="360" y="486" text-anchor="middle" fill="#8B0D04" font-family="Arial, sans-serif" font-size="32" font-weight="800">LOST &amp; FOUND</text>
+</svg>

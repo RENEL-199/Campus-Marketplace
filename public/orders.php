@@ -6,63 +6,34 @@ require_login();
 
 $db = new Database();
 $pdo = $db->pdo;
+$user_id = current_user_id();
 
 function public_image_path(?string $path): string {
     $path = trim((string)$path);
-
-    if ($path === '') {
-        return 'uploads/default.png';
-    }
-
+    if ($path === '') return 'uploads/default.png';
     $path = str_replace('\\', '/', $path);
-
-    if (preg_match('/^https?:\/\//i', $path)) {
-        return $path;
-    }
-
+    if (preg_match('/^https?:\/\//i', $path)) return $path;
     $pos = strpos($path, 'uploads/');
-    if ($pos !== false) {
-        return substr($path, $pos);
-    }
-
+    if ($pos !== false) return substr($path, $pos);
     return 'uploads/' . basename($path);
 }
 
-$user_id = current_user_id();
-
-$pdo->exec("CREATE TABLE IF NOT EXISTS orders (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    fullname VARCHAR(255) NOT NULL,
-    address VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    payment_method VARCHAR(100) DEFAULT NULL,
-    total DECIMAL(10,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-$pdo->exec("CREATE TABLE IF NOT EXISTS order_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    order_id INT NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(prod_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-$stmt = $pdo->prepare("SELECT o.id, o.total, o.created_at, COUNT(oi.id) AS item_count, MIN(p.prod_image) AS sample_image, MIN(p.prod_name) AS sample_name
+$stmt = $pdo->prepare(" 
+    SELECT 
+        o.order_id, o.total, o.created_at,
+        COUNT(oi.order_item_id) AS item_count,
+        MIN(p.prod_image) AS sample_image,
+        MIN(p.prod_name) AS sample_name
     FROM orders o
-    JOIN order_items oi ON oi.order_id = o.id
+    JOIN order_items oi ON oi.order_id = o.order_id
     JOIN products p ON p.prod_id = oi.product_id
     WHERE o.user_id = ?
-    GROUP BY o.id
-    ORDER BY o.created_at DESC");
+    GROUP BY o.order_id
+    ORDER BY o.created_at DESC
+");
 $stmt->execute([$user_id]);
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -271,11 +242,11 @@ nav i {
                     <?php endif; ?>
                 </div>
                 <div class="order-info">
-                    <h3><?= htmlspecialchars($order['sample_name'] ?: 'Order #' . $order['id']) ?></h3>
+                    <h3><?= htmlspecialchars($order['sample_name'] ?: 'Order #' . $order['order_id']) ?></h3>
                     <?= htmlspecialchars($order['created_at']) ?></p>
                     <p>Total: ₱<?= number_format($order['total'], 2) ?> • <?= (int)$order['item_count'] ?> item(s)</p>
                 </div>
-                <button class="view-btn" onclick="openReceipt(<?= (int)$order['id'] ?>)">View Receipt</button>
+                <button class="view-btn" onclick="openReceipt(<?= (int)$order['order_id'] ?>)">View Receipt</button>
             </div>
         <?php endforeach; ?>
     <?php endif; ?>

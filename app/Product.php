@@ -13,6 +13,7 @@ class Product {
         public ?int $category_id,
         public ?string $prod_rate_type = null,
         public ?string $category_name = null,
-        public ?string $seller_name = null
+        public ?string $seller_name = null,
+        public ?string $category_type = null
     ) {}
 }

@@ -2,186 +2,50 @@
 
 require_once __DIR__ . '/../app/Database.php';
 require_once __DIR__ . '/../app/auth.php';
+require_once __DIR__ . '/../app/CartRepository.php';
 
 require_login();
 $user_id = current_user_id();
 
 $db = new Database();
 $pdo = $db->pdo;
-
+$cartRepo = new CartRepository($pdo);
 
 /* =========================
-   ADD TO CART (PRODUCT + RENTAL)
+   ADD TO CART / RENT / SERVICE
 ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
-
-    $product_id = (int)$_POST['product_id'];
-    $quantity   = (int)($_POST['quantity'] ?? 1);
-
-    // rental fields (optional)
-    $date_from  = $_POST['date_from'] ?? null;
-    $date_to    = $_POST['date_to'] ?? null;
-    $full_name  = $_POST['full_name'] ?? null;
-    $student_no = $_POST['student_no'] ?? null;
-    $age        = $_POST['age'] ?? null;
-    $gender     = $_POST['gender'] ?? null;
-
-    // check existing cart item
-    $check = $pdo->prepare("
-        SELECT id 
-        FROM cart_items 
-        WHERE user_id = ? AND product_id = ?
-    ");
-    $check->execute([$user_id, $product_id]);
-    $existing = $check->fetch(PDO::FETCH_ASSOC);
-
-    if ($existing) {
-
-        // UPDATE (FIXED: now includes rental fields too)
-        $update = $pdo->prepare("
-            UPDATE cart_items 
-            SET 
-                quantity = quantity + ?,
-                date_from = COALESCE(?, date_from),
-                date_to = COALESCE(?, date_to),
-                full_name = COALESCE(?, full_name),
-                student_no = COALESCE(?, student_no),
-                age = COALESCE(?, age),
-                gender = COALESCE(?, gender)
-            WHERE user_id = ? AND product_id = ?
-        ");
-
-        $update->execute([
-            $quantity,
-            $date_from,
-            $date_to,
-            $full_name,
-            $student_no,
-            $age,
-            $gender,
+    try {
+        $cartRepo->addItem(
             $user_id,
-            $product_id
-        ]);
-
-    } else {
-
-        // INSERT NEW ITEM
-        $insert = $pdo->prepare("
-            INSERT INTO cart_items 
-            (
-                user_id,
-                product_id,
-                quantity,
-                date_from,
-                date_to,
-                full_name,
-                student_no,
-                age,
-                gender
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $insert->execute([
-            $user_id,
-            $product_id,
-            $quantity,
-            $date_from,
-            $date_to,
-            $full_name,
-            $student_no,
-            $age,
-            $gender
-        ]);
+            (int)$_POST['product_id'],
+            max(1, (int)($_POST['quantity'] ?? 1)),
+            $_POST,
+            $_FILES
+        );
+        header("Location: cart.php");
+        exit;
+    } catch (Throwable $e) {
+        header("Location: cart.php?cart_error=" . urlencode($e->getMessage()));
+        exit;
     }
-
-    header("Location: cart.php");
-    exit;
 }
-
 
 /* =========================
    REMOVE ITEM
 ========================= */
 if (isset($_GET['remove'])) {
-
-    $product_id = (int)$_GET['remove'];
-
-    $stmt = $pdo->prepare("
-        DELETE FROM cart_items
-        WHERE user_id = ? AND product_id = ?
-    ");
-    $stmt->execute([$user_id, $product_id]);
-
+    $cartRepo->removeItem($user_id, (int)$_GET['remove']);
     header("Location: cart.php");
     exit;
 }
 
-
 /* =========================
-   GET CART ITEMS (FIXED)
+   GET CART ITEMS
 ========================= */
-$stmt = $pdo->prepare("
-    SELECT 
-        c.product_id,
-        c.quantity,
-        c.date_from,
-        c.date_to,
-        c.full_name,
-        c.student_no,
-        c.age,
-        c.gender,
-        p.prod_name,
-        p.prod_price,
-        p.prod_image,
-        p.prod_rate_type
-    FROM cart_items c
-    JOIN products p ON p.prod_id = c.product_id
-    WHERE c.user_id = ?
-");
-
-$stmt->execute([$user_id]);
-$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-function getRentalDurationDays(?string $from, ?string $to): int {
-    if (empty($from) || empty($to)) {
-        return 1;
-    }
-
-    $start = strtotime($from);
-    $end = strtotime($to);
-
-    if ($start === false || $end === false || $end < $start) {
-        return 1;
-    }
-
-    $days = (int)floor(($end - $start) / 86400) + 1;
-    return max(1, $days);
-}
-
-function calculateCartSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
-    $duration = getRentalDurationDays($from, $to);
-    $rate = strtolower(trim($rateType ?? ''));
-
-    if ($rate === 'per day') {
-        return $price * $quantity * $duration;
-    }
-
-    if ($rate === 'per hour') {
-        return $price * $quantity * max(1, $duration * 24);
-    }
-
-    return $price * $quantity;
-}
-
-
-/* =========================
-   TOTAL
-========================= */
+$items = $cartRepo->getItemsByUser($user_id);
 $total = 0;
-
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -604,6 +468,9 @@ $total = 0;
         <?php if (isset($_GET['select_error'])): ?>
             <script>alert('Please check at least one item before checkout.');</script>
         <?php endif; ?>
+        <?php if (isset($_GET['cart_error'])): ?>
+            <script>alert(<?= json_encode($_GET['cart_error']) ?>);</script>
+        <?php endif; ?>
 
         <?php if (empty($items)): ?>
             <p>Your cart is empty.</p>
@@ -619,14 +486,12 @@ $total = 0;
                 $price = (float)$item['prod_price'];
                 $qty = (int)$item['quantity'];
                 $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
-                $subtotal = calculateCartSubtotal($price, $qty, $rateType, $item['date_from'], $item['date_to']);
+                $subtotal = CartRepository::subtotal($item);
                 $total += $subtotal;
-                $duration = getRentalDurationDays($item['date_from'], $item['date_to']);
+                $duration = CartRepository::rentalDays($item['date_from'] ?? null, $item['date_to'] ?? null);
                 $durationLabel = '';
-                if (strtolower($rateType) === 'per day') {
+                if (strtolower((string)($item['category_type'] ?? '')) === 'rental') {
                     $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
-                } elseif (strtolower($rateType) === 'per hour') {
-                    $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
                 }
             ?>
 
@@ -643,13 +508,18 @@ $total = 0;
                 data-student-no="<?= htmlspecialchars($item['student_no'] ?? '', ENT_QUOTES) ?>"
                 data-age="<?= htmlspecialchars($item['age'] ?? '', ENT_QUOTES) ?>"
                 data-gender="<?= htmlspecialchars($item['gender'] ?? '', ENT_QUOTES) ?>"
+                data-category-type="<?= htmlspecialchars($item['category_type'] ?? 'product', ENT_QUOTES) ?>"
+                data-service-full-name="<?= htmlspecialchars($item['service_full_name'] ?? '', ENT_QUOTES) ?>"
+                data-service-student-no="<?= htmlspecialchars($item['service_student_no'] ?? '', ENT_QUOTES) ?>"
+                data-print-type="<?= htmlspecialchars($item['print_type'] ?? '', ENT_QUOTES) ?>"
+                data-service-files="<?= htmlspecialchars($item['service_files_text'] ?? '', ENT_QUOTES) ?>"
             >
 
                 <input 
                     type="checkbox" 
                     class="cart-check" 
                     name="selected_items[]" 
-                    value="<?= (int)$item['product_id'] ?>"
+                    value="<?= (int)$item['cart_item_id'] ?>"
                     onclick="event.stopPropagation();"
                 >
 
@@ -664,11 +534,17 @@ $total = 0;
                         <?php if (!empty($durationLabel)): ?>
                             <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
                         <?php endif; ?>
+                        <?php if (($item['category_type'] ?? '') === 'service'): ?>
+                            <p>Files: <?= (int)$qty ?></p>
+                            <?php if (!empty($item['print_type'])): ?>
+                                <p>Print: <?= htmlspecialchars($item['print_type']) ?></p>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <p><strong>Subtotal: ₱<?= number_format($subtotal, 2) ?></strong></p>
                     </div>
 
                     <a class="remove-btn"
-                       href="cart.php?remove=<?= $item['product_id'] ?>">
+                       href="cart.php?remove=<?= $item['cart_item_id'] ?>">
                        Remove
                     </a>
 

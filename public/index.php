@@ -76,7 +76,23 @@ $featured_services = filterByCategory($products, [3], $category);
     <link rel="stylesheet" href="../assets/index-style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <style> nav {
+    <style>
+    
+.logout-btn{
+    background:#810C01;
+    color:white;
+    padding:8px 15px;
+    border-radius:8px;
+    text-decoration:none;
+    font-weight:600;
+    transition:.3s;
+}
+
+.logout-btn:hover{
+    background:#5f0801;
+}
+
+     nav {
             height: 58px;
             background: #810C01;
             color: white;
@@ -110,12 +126,36 @@ $featured_services = filterByCategory($products, [3], $category);
             font-size: 13px;
         }
 
+        /* Lost & Found integration */
         .categories .category.active {
-            background: #810C01 !important;
+            background: #8b0d04 !important;
             color: #fff !important;
-            border-color: #810C01 !important;
+            border-color: #8b0d04 !important;
         }
-        </style>
+
+        .lost-found-card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .lost-found-card .lost-found-icon-box {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #fff7f6, #f1d6d3);
+            border-radius: 14px 14px 0 0;
+            overflow: hidden;
+        }
+
+        .lost-found-card .lost-found-icon-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    </style>
 </head>
 
 <body>
@@ -129,6 +169,9 @@ $featured_services = filterByCategory($products, [3], $category);
             <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
             <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
             <a href="account.php"><i class="fa-solid fa-user"></i></a>
+            <a href="logout.php" class="logout-btn">
+    Logout
+</a>
         </div>
     </nav>
 
@@ -198,32 +241,35 @@ $featured_services = filterByCategory($products, [3], $category);
 
             <div class="grid">
 
-                <div class="card">
-                    <img src="uploads/Lost.png" alt="Lost and Found">
-
-                    <div class="card-content">
-                        <div class="card-top-row">
-                            <h3>Lost & Found</h3>
-                            <span class="category-tag">Services</span>
+                <a href="lost_found.php" class="lost-found-card-link">
+                    <div class="card lost-found-card">
+                        <div class="lost-found-icon-box">
+                            <img src="uploads/lost_found-default.png" alt="Lost and Found">
                         </div>
 
-                        <p class="card-description">
-                            Report or search lost items on campus......
-                            <a href="lost_found.php">read more</a>
-                        </p>
+                        <div class="card-content">
+                            <div class="card-top-row">
+                                <h3>Lost & Found</h3>
+                                <span class="category-tag">Services</span>
+                            </div>
 
-                        <div class="card-price-stock-row">
-                            <div class="price">Free</div>
-                            <div class="stock">Campus</div>
+                            <p class="card-description">
+                                Report lost items or post found items on campus.
+                            </p>
+
+                            <div class="card-price-stock-row">
+                                <div class="price">Free</div>
+                                <div class="stock">Campus</div>
+                            </div>
+
+                            <button type="button">Open Lost & Found</button>
                         </div>
-
-                        <button type="button" onclick="window.location.href='lost_found.php'">
-                            Open Lost & Found
-                        </button>
                     </div>
-                </div>
+                </a>
 
-                <?php if (!empty($featured_services)): ?>
+                <?php if (empty($featured_services)): ?>
+                    <p>No services found.</p>
+                <?php else: ?>
                     <?= $view->renderProducts($featured_services); ?>
                 <?php endif; ?>
 
