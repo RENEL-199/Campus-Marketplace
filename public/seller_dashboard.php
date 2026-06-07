@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/Database.php';
 require_once __DIR__ . '/../app/Product.php';
 require_once __DIR__ . '/../app/ProductRepository.php';
 require_once __DIR__ . '/../app/auth.php';
+require_once __DIR__ . '/../app/csrf.php';
 
 require_login();
 
@@ -23,11 +24,90 @@ if (!$checkUser->fetchColumn()) {
 }
 
 $repo = new ProductRepository();
+$csrf = csrf_token();
+
+ensureColumn($pdo, 'products', 'rental_terms', "rental_terms TEXT DEFAULT NULL");
+ensureColumn($pdo, 'products', 'seller_terms_accepted_at', "seller_terms_accepted_at DATETIME DEFAULT NULL");
+ensureColumn($pdo, 'order_item_rentals', 'payment_status', "payment_status VARCHAR(60) NOT NULL DEFAULT 'Pending Payment'");
+ensureColumn($pdo, 'order_item_rentals', 'payment_proof_path', "payment_proof_path VARCHAR(255) DEFAULT NULL");
+ensureColumn($pdo, 'order_item_rentals', 'payment_verified_at', "payment_verified_at DATETIME DEFAULT NULL");
+ensureColumn($pdo, 'order_item_rentals', 'payment_verified_by', "payment_verified_by INT DEFAULT NULL");
+ensureColumn($pdo, 'order_item_rentals', 'payment_rejection_reason', "payment_rejection_reason TEXT DEFAULT NULL");
+ensureColumn($pdo, 'order_item_rentals', 'reservation_status', "reservation_status VARCHAR(60) NOT NULL DEFAULT 'Pending Payment'");
+ensureColumn($pdo, 'order_item_rentals', 'rental_terms_accepted', "rental_terms_accepted TINYINT(1) NOT NULL DEFAULT 0");
+
+ensureTable($pdo, "CREATE TABLE IF NOT EXISTS seller_terms_acceptances (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, user_agent TEXT DEFAULT NULL, ip_address VARCHAR(100) DEFAULT NULL)");
+ensureIndex($pdo, 'seller_terms_acceptances', 'uniq_seller_terms_acceptances_user_id', 'ADD UNIQUE INDEX uniq_seller_terms_acceptances_user_id (user_id)');
+ensureTable($pdo, "CREATE TABLE IF NOT EXISTS rental_terms_acceptances (id INT AUTO_INCREMENT PRIMARY KEY, order_item_id INT NOT NULL, accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, terms_text TEXT DEFAULT NULL, user_id INT DEFAULT NULL)");
+ensureTable($pdo, "CREATE TABLE IF NOT EXISTS notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(60) NOT NULL DEFAULT 'general', title VARCHAR(150) NOT NULL, message TEXT NOT NULL, related_order_item_id INT DEFAULT NULL, is_read TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_notifications_user (user_id), INDEX idx_notifications_unread (user_id, is_read))");
+ensureTable($pdo, "CREATE TABLE IF NOT EXISTS rental_payment_history (id INT AUTO_INCREMENT PRIMARY KEY, order_item_id INT NOT NULL, status_from VARCHAR(60) NOT NULL, status_to VARCHAR(60) NOT NULL, changed_by INT DEFAULT NULL, changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, note TEXT DEFAULT NULL)");
+
+function ensureColumn(PDO $pdo, string $table, string $column, string $definition): void {
+    $stmt = $pdo->query("SHOW COLUMNS FROM `" . $table . "` LIKE '" . $column . "'");
+    if ($stmt->fetch()) {
+        return;
+    }
+    $pdo->exec("ALTER TABLE `" . $table . "` ADD COLUMN " . $definition);
+}
+
+function ensureTable(PDO $pdo, string $sql): void {
+    $pdo->exec($sql);
+}
+
+function ensureIndex(PDO $pdo, string $table, string $indexName, string $definition): void {
+    $stmt = $pdo->query("SHOW INDEX FROM `" . $table . "` WHERE Key_name = '" . $indexName . "'");
+    if ($stmt->fetch()) {
+        return;
+    }
+
+    if ($table === 'seller_terms_acceptances' && $indexName === 'uniq_seller_terms_acceptances_user_id') {
+        $pdo->exec("DELETE s1 FROM seller_terms_acceptances s1 INNER JOIN seller_terms_acceptances s2 ON s1.user_id = s2.user_id AND s1.id > s2.id");
+    }
+
+    $pdo->exec("ALTER TABLE `" . $table . "` " . $definition);
+}
+
+function uploadProductImage(array $file, string $fallback = 'uploads/default.png'): string {
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return $fallback;
+    }
+
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Image upload failed.');
+    }
+
+    if ((int)($file['size'] ?? 0) > 2 * 1024 * 1024) {
+        throw new RuntimeException('Image must be 2MB or smaller.');
+    }
+
+    $ext = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+        throw new RuntimeException('Only JPG, PNG, GIF, and WEBP images are allowed.');
+    }
+
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    $fileName = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $targetFile = $uploadDir . $fileName;
+
+    if (!move_uploaded_file($file['tmp_name'], $targetFile)) {
+        throw new RuntimeException('Could not save the uploaded image.');
+    }
+
+    return 'uploads/' . $fileName;
+}
 
 /* =========================
    DELETE PRODUCT
 ========================= */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        echo "<script>alert('Invalid security token.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
 
     if (empty($_POST["selected_product_id"])) {
         echo "<script>alert('Select product first to Delete it.'); window.location.href='seller_dashboard.php';</script>";
@@ -36,12 +116,56 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
 
     $delete_id = (int) $_POST["selected_product_id"];
 
-    $stmt = $pdo->prepare("
-        DELETE FROM products
-        WHERE prod_id = ? AND user_id = ?
-    ");
+    $repo->delete($delete_id, $user_id);
 
-    $stmt->execute([$delete_id, $user_id]);
+    header("Location: seller_dashboard.php");
+    exit;
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && in_array($_POST["action"], ['verify_payment','reject_payment'], true)) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        echo "<script>alert('Invalid security token.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+    $orderItemId = (int)($_POST['order_item_id'] ?? 0);
+    if ($orderItemId <= 0) {
+        echo "<script>alert('Missing rental order to verify.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    $current = $pdo->prepare("SELECT payment_status, reservation_status FROM order_item_rentals orr JOIN order_items oi ON oi.order_item_id = orr.order_item_id JOIN products p ON p.prod_id = oi.product_id WHERE orr.order_item_id = ? AND p.user_id = ? LIMIT 1");
+    $current->execute([$orderItemId, $user_id]);
+    $currentStatus = $current->fetch(PDO::FETCH_ASSOC);
+    if (!$currentStatus) {
+        echo "<script>alert('Rental order not found.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    if ($_POST['action'] === 'verify_payment') {
+        $pdo->prepare("UPDATE order_item_rentals SET payment_status = 'Reserved', reservation_status = 'Reserved', payment_verified_at = NOW(), payment_verified_by = ?, payment_rejection_reason = NULL WHERE order_item_id = ?")->execute([$user_id, $orderItemId]);
+        $pdo->prepare("INSERT INTO rental_payment_history (order_item_id, status_from, status_to, changed_by, note) VALUES (?, ?, 'Reserved', ?, 'Payment approved by seller')")->execute([$orderItemId, $currentStatus['payment_status'], $user_id]);
+        $pdo->prepare("UPDATE orders SET status = 'confirmed' WHERE order_id = (SELECT order_id FROM order_items WHERE order_item_id = ?)")->execute([$orderItemId]);
+    } else {
+        $reason = trim($_POST['reason'] ?? '');
+        $pdo->prepare("UPDATE order_item_rentals SET payment_status = 'Payment Under Review', payment_rejection_reason = ?, reservation_status = 'Payment Under Review' WHERE order_item_id = ?")->execute([$reason !== '' ? $reason : 'Payment rejected by seller.', $orderItemId]);
+        $pdo->prepare("INSERT INTO rental_payment_history (order_item_id, status_from, status_to, changed_by, note) VALUES (?, ?, 'Payment Under Review', ?, ?)")->execute([$orderItemId, $currentStatus['payment_status'], $user_id, $reason]);
+    }
+
+    header("Location: seller_dashboard.php");
+    exit;
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "accept_terms") {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        http_response_code(403);
+        exit('Invalid security token.');
+    }
+
+    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at = NOW(), user_agent = VALUES(user_agent), ip_address = VALUES(ip_address)")->execute([
+        $user_id,
+        $_SERVER['HTTP_USER_AGENT'] ?? null,
+        $_SERVER['REMOTE_ADDR'] ?? null,
+    ]);
 
     header("Location: seller_dashboard.php");
     exit;
@@ -51,6 +175,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
    UPDATE PRODUCT
 ========================= */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "update") {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        echo "<script>alert('Invalid security token.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+    if (empty($_POST['seller_terms_accepted'])) {
+        echo "<script>alert('You must accept the platform Terms and Conditions before updating listings.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at)")->execute([$user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
 
     if (empty($_POST["selected_product_id"])) {
         echo "<script>alert('Select product first to update it.'); window.location.href='seller_dashboard.php';</script>";
@@ -66,73 +199,56 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
     $stock = trim($_POST["stock"]);
     $location = trim($_POST["location"] ?? "");
     $rate_type = trim($_POST["rate_type"] ?? "");
+    $rental_terms = trim($_POST['rental_terms'] ?? '');
+    if (strcasecmp($rate_type, "Per Hour") === 0) {
+        $rate_type = "Per Day";
+    }
 
     if ($name === "" || $desc === "" || $price === "" || $category_id === "" || $stock === "") {
-
         echo "<script>alert('Please fill out Product Name, Description, Price, Quantity, and Category.'); window.location.href='seller_dashboard.php';</script>";
         exit;
     }
 
-    $stock = (int) $stock;
+    $price = (float)$price;
+    $stock = (int)$stock;
+    $category_id = (int)$category_id;
 
-    /* KEEP OLD IMAGE */
-    $stmt = $pdo->prepare("
-        SELECT prod_image
-        FROM products
-        WHERE prod_id = ? AND user_id = ?
-    ");
-
-    $stmt->execute([$update_id, $user_id]);
-
-    $oldProduct = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $image = $oldProduct['prod_image'];
-
-    /* NEW IMAGE IF UPLOADED */
-    if (isset($_FILES["image"]) && $_FILES["image"]["error"] === 0) {
-
-        $uploadDir = __DIR__ . "/uploads/";
-
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-
-        $fileName = time() . "_" . basename($_FILES["image"]["name"]);
-
-        $targetFile = $uploadDir . $fileName;
-
-        if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFile)) {
-
-            $image = "uploads/" . $fileName;
-        }
+    if ($price < 0 || $stock < 0 || $category_id <= 0) {
+        echo "<script>alert('Please enter valid price, quantity, and category.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE products
-        SET
-            prod_name = ?,
-            prod_desc = ?,
-            prod_price = ?,
-            prod_stock = ?,
-            category_id = ?,
-            prod_image = ?,
-            prod_location = ?,
-            prod_rate_type = ?
-        WHERE prod_id = ? AND user_id = ?
-    ");
+    $stmt = $pdo->prepare("SELECT prod_image FROM products WHERE prod_id = ? AND user_id = ?");
+    $stmt->execute([$update_id, $user_id]);
+    $oldProduct = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $stmt->execute([
+    $image = $oldProduct['prod_image'] ?? 'uploads/default.png';
+    try {
+        if (isset($_FILES['image']) && is_array($_FILES['image']) && ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            $image = uploadProductImage($_FILES['image'], $image);
+        }
+    } catch (RuntimeException $e) {
+        echo "<script>alert('" . addslashes($e->getMessage()) . "'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    $repo->update(new Product(
+        $update_id,
+        $user_id,
         $name,
         $desc,
         $price,
-        $stock,
-        $category_id,
         $image,
+        $stock,
         $location,
+        null,
+        $category_id,
         $rate_type,
-        $update_id,
-        $user_id
-    ]);
+        null,
+        null,
+        null,
+        $rental_terms
+    ));
 
     header("Location: seller_dashboard.php");
     exit;
@@ -142,41 +258,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
    ADD PRODUCT
 ========================= */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["action"] === "create") {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        echo "<script>alert('Invalid security token.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+    if (empty($_POST['seller_terms_accepted'])) {
+        echo "<script>alert('You must accept the platform Terms and Conditions before creating a listing.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at)")->execute([$user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
     $name = trim($_POST["name"]);
-$desc = trim($_POST["description"]);
-$price = trim($_POST["price"]);
-$category_id = trim($_POST["category"]);
-$stock = trim($_POST["stock"]);
-$location = trim($_POST["location"] ?? "");
-$rate_type = trim($_POST["rate_type"] ?? "");
-
-if ($name === "" || $desc === "" || $price === "" || $category_id === "" || $stock === "") {
-    echo "<script>alert('Please fill out Product Name, Description, Price, Quantity, and Category.'); window.location.href='seller_dashboard.php';</script>";
-    exit;
-}
-
-$stock = (int) $stock;
-    $image = "uploads/default.png";
-
-    /* IMAGE UPLOAD */
-    if (isset($_FILES["image"]) && $_FILES["image"]["error"] === 0) {
-
-        $uploadDir = __DIR__ . "/uploads/";
-
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-
-        $fileName = time() . "_" . basename($_FILES["image"]["name"]);
-        $targetFile = $uploadDir . $fileName;
-
-        if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFile)) {
-            $image = "uploads/" . $fileName;
-        }
+    $desc = trim($_POST["description"]);
+    $price = trim($_POST["price"]);
+    $category_id = trim($_POST["category"]);
+    $stock = trim($_POST["stock"]);
+    $location = trim($_POST["location"] ?? "");
+    $rate_type = trim($_POST["rate_type"] ?? "");
+    $rental_terms = trim($_POST['rental_terms'] ?? '');
+    if (strcasecmp($rate_type, "Per Hour") === 0) {
+        $rate_type = "Per Day";
     }
 
-    /* CREATE PRODUCT OBJECT */
-    $product = new Product(
+    if ($name === "" || $desc === "" || $price === "" || $category_id === "" || $stock === "") {
+        echo "<script>alert('Please fill out Product Name, Description, Price, Quantity, and Category.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    $price = (float)$price;
+    $stock = (int)$stock;
+    $category_id = (int)$category_id;
+
+    if ($price < 0 || $stock < 0 || $category_id <= 0) {
+        echo "<script>alert('Please enter valid price, quantity, and category.'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    $image = 'uploads/default.png';
+    try {
+        if (isset($_FILES['image']) && is_array($_FILES['image']) && ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            $image = uploadProductImage($_FILES['image'], $image);
+        }
+    } catch (RuntimeException $e) {
+        echo "<script>alert('" . addslashes($e->getMessage()) . "'); window.location.href='seller_dashboard.php';</script>";
+        exit;
+    }
+
+    $repo->add(new Product(
         0,
         $user_id,
         $name,
@@ -184,23 +311,15 @@ $stock = (int) $stock;
         $price,
         $image,
         $stock,
+        $location,
+        null,
+        $category_id,
+        $rate_type,
         null,
         null,
-        $category_id
-    );
-
-    $repo->add($product);
-
-
-    $last_id = $pdo->lastInsertId();
-
-$stmt = $pdo->prepare("
-    UPDATE products
-    SET prod_location = ?, prod_rate_type = ?
-    WHERE prod_id = ? AND user_id = ?
-");
-
-$stmt->execute([$location, $rate_type, $last_id, $user_id]);
+        null,
+        $rental_terms
+    ));
 
     header("Location: seller_dashboard.php");
     exit;
@@ -209,9 +328,13 @@ $stmt->execute([$location, $rate_type, $last_id, $user_id]);
 /* =========================
    GET PRODUCTS
 ========================= */
-$stmt = $pdo->prepare("SELECT * FROM products WHERE user_id = ?");
+$stmt = $pdo->prepare("SELECT *, rate_type AS prod_rate_type, location AS prod_location FROM products WHERE user_id = ? AND status <> 'deleted'");
 $stmt->execute([$user_id]);
 $products = $stmt->fetchAll(PDO::FETCH_OBJ);
+
+$sellerAcceptedAt = $pdo->prepare("SELECT accepted_at FROM seller_terms_acceptances WHERE user_id = ? LIMIT 1");
+$sellerAcceptedAt->execute([$user_id]);
+$sellerAcceptedAt = $sellerAcceptedAt->fetchColumn();
 
 /* =========================
    STATS
@@ -224,6 +347,18 @@ foreach ($products as $p) {
     if ($p->prod_stock > 0) $active++;
     else $out++;
 }
+
+$pendingRentalPayments = $pdo->prepare("
+    SELECT oi.order_item_id, oi.order_id, p.prod_name, o.fullname, o.phone, orr.payment_proof_path, orr.payment_status, orr.payment_rejection_reason
+    FROM order_items oi
+    JOIN orders o ON o.order_id = oi.order_id
+    JOIN order_item_rentals orr ON orr.order_item_id = oi.order_item_id
+    JOIN products p ON p.prod_id = oi.product_id
+    WHERE p.user_id = ? AND orr.payment_status IN ('Payment Proof Submitted','Payment Under Review')
+    ORDER BY o.created_at DESC
+");
+$pendingRentalPayments->execute([$user_id]);
+$pendingRentalPayments = $pendingRentalPayments->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 
@@ -241,33 +376,60 @@ foreach ($products as $p) {
 /* PAGE */
 body {
     margin: 0;
-    background: #f3f5f2;
+    background: linear-gradient(180deg, #f4f6f8 0%, #eef2ef 100%);
     font-family: Arial, sans-serif;
+    color: #1f2937;
 }
 
-/* PAGE */
 .dashboard {
-    max-width: 1000px;
-    margin: 12px auto 30px;
+    max-width: 1200px;
+    margin: 20px auto 36px;
     padding: 0 20px;
 }
 
-/* STATS */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.page-title h1 {
+    margin: 0;
+    font-size: 28px;
+    color: #111827;
+}
+
+.page-title p {
+    margin: 6px 0 0;
+    color: #5b6775;
+    font-size: 14px;
+}
+
+.badge-pill {
+    background: #fff7f3;
+    color: #991000;
+    border: 1px solid #f3d7cf;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
 .stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 8px;
-   
+    gap: 14px;
+    margin-bottom: 18px;
 }
 
 .stat {
-    background: white;
-    padding: 7px 10px;
-    border-radius: 14px;
-    text-align: center;
-    box-shadow: 0 3px 4px rgba(0,0,0,0.22);
-     margin-top: 10px;
+    background: linear-gradient(145deg, #ffffff 0%, #f7f9f7 100%);
+    padding: 14px 16px;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(17, 24, 39, 0.08);
+    border: 1px solid #edf1ed;
 }
 
 .stat h2 {
@@ -292,27 +454,32 @@ body {
 /* MAIN LAYOUT */
 .grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-    gap: 24px;
+ grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+    gap: 22px;
     align-items: start;
-    margin-top: 20px; /* increase if you want lower */
 }
 
-/* CARD */
 .card {
-    background: white;
-    padding: 18px 18px 18px;
-    border-radius: 14px; /* instead of 0 0 16px 16px */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.28);
-    min-height: 340px;
-    height: fit-content;
+    background: linear-gradient(145deg, #ffffff 0%, #fcfdfc 100%);
+    padding: 18px;
+    border-radius: 18px;
+    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.08);
+    border: 1px solid #edf1ed;
+    min-height: 100%;
     width: 100%;
 }
 
 .card h2 {
     margin: 0 0 8px;
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 800;
+    color: #111827;
+}
+
+.card-subtle {
+    color: #5b6775;
+    font-size: 13px;
+    margin-bottom: 10px;
 }
 
 /* IMAGE UPLOAD */
@@ -357,6 +524,10 @@ select {
     border: 1px solid #aaa;
     font-size: 15px;
     box-sizing: border-box;
+}
+
+label input{
+    width: auto;
 }
 
 textarea {
@@ -513,20 +684,92 @@ button {
 }
 
 
-/* RESPONSIVE */
-@media (max-width: 768px) {
-    .stats,
-    .grid {
-        grid-template-columns: 1fr;
-    }
-
-    .dashboard {
-        padding: 0 12px;
-    }
+/* MODAL */
+.terms-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.62);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 18px;
 }
 
+.terms-modal {
+    width: min(900px, 100%);
+    max-height: 92vh;
+    overflow: auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 22px 48px rgba(17, 24, 39, 0.22);
+    border: 1px solid #edf1ed;
+}
 
-/* Move Per Hour / Per Day / Per Piece boxes upward */
+.terms-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 18px 10px;
+    border-bottom: 1px solid #edf1ed;
+}
+
+.terms-header h3 { margin: 0; font-size: 20px; }
+.terms-body { padding: 16px 18px 8px; color: #374151; font-size: 14px; line-height: 1.5; }
+.terms-body ul { margin: 8px 0 8px 18px; }
+.terms-footer { padding: 12px 18px 18px; border-top: 1px solid #edf1ed; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.terms-footer label { display:flex; align-items:center; gap:8px; font-size:13px; color:#374151; }
+
+        .receipt-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(17, 24, 39, 0.68);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 18px;
+        }
+
+        .receipt-modal-box {
+            width: min(980px, 100%);
+            max-height: 92vh;
+            overflow: auto;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 22px 48px rgba(17, 24, 39, 0.22);
+            border: 1px solid #edf1ed;
+            padding: 16px;
+        }
+
+        .receipt-modal-box img {
+            width: 100%;
+            max-height: 78vh;
+            object-fit: contain;
+            border-radius: 12px;
+            background: #f3f4f6;
+        }
+
+        .receipt-modal-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+    .stats { grid-template-columns: 1fr; }
+    .dashboard { padding: 0 12px; }
+    .page-header { align-items: start; flex-direction: column; }
+    .action-buttons { grid-template-columns: 1fr 1fr; }
+    .top-form-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) { .action-buttons { grid-template-columns: 1fr; } }
+
+
+/* Move Per Day / Per Piece boxes upward */
 .rate-box {
     transform: translateY(-6px); /* adjust -4px, -8px, etc. */
 }
@@ -606,22 +849,79 @@ button {
 </head>
 
 <body>
-
-<nav>
-    <h1>Seller Dashboard</h1>
-    <div>
-        <a href="index.php"><i class="fa-solid fa-house"></i></a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i></a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i></a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i></a>
-        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+    <?php if (!$sellerAcceptedAt): ?>
+    <div class="terms-modal-backdrop" id="termsModalBackdrop">
+        <div class="terms-modal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+            <div class="terms-header">
+                <div>
+                    <h3 id="termsTitle">Seller Terms &amp; Conditions</h3>
+                    <div class="card-subtle">Please review and accept these guidelines before creating or updating listings.</div>
+                </div>
+                <button type="button" id="closeTermsBtn" style="background:#fff;color:#991000;border:1px solid #e5c2b8;padding:8px 10px;font-size:13px;">Close</button>
+            </div>
+            <div class="terms-body">
+                <p>By listing products or rentals on IskoHub, you agree to:</p>
+                <ul>
+                    <li>Provide accurate item details, pricing, and stock availability.</li>
+                    <li>Be responsible for the legality, quality, and condition of any product or rental you list.</li>
+                    <li>Honor all confirmed orders, rental terms, and customer communication.</li>
+                    <li>Use the platform in a lawful manner and respect buyers, renters, and campus policies.</li>
+                    <li>Accept that false or misleading listings may be removed and reported.</li>
+                </ul>
+                <p>These terms help protect both sellers and buyers and are required before listing any item.</p>
+            </div>
+            <div class="terms-footer">
+                <label><input type="checkbox" id="termsAcceptCheckbox"> I have reviewed and accept the seller terms and conditions.</label>
+                <form id="acceptTermsForm" method="POST" style="display:flex; align-items:center; gap:8px; margin:0;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="action" value="accept_terms">
+                    <button type="submit" id="acceptTermsBtn" style="padding:10px 14px;">Accept &amp; Continue</button>
+                </form>
+            </div>
+        </div>
     </div>
-</nav>
+    <?php endif; ?>
+
+    <!-- NAV -->
+    <nav>
+        <h1>IskoHub</h1>
+        <div>
+<a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>            
+            <a href="lost_found_inbox.php"><i class="fa-solid fa-box-open">  Inbox</i></a>
+            <a href="account.php"><i class="fa-solid fa-user"></i></a>
+            <a href="logout.php" class="logout-btn">
+Logout
+</a>
+        </div>
+    </nav>
+
+    <div class="receipt-modal-backdrop" id="receiptModalBackdrop" aria-hidden="true">
+        <div class="receipt-modal-box" role="dialog" aria-modal="true" aria-label="Rental receipt preview">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+                <strong>GCash Receipt Preview</strong>
+                <button type="button" id="closeReceiptModalBtn" style="background:#fff;color:#991000;border:1px solid #e5c2b8;padding:8px 10px;font-size:13px;">Close</button>
+            </div>
+            <img id="receiptModalImage" src="" alt="GCash payment receipt preview">
+            <div class="receipt-modal-actions">
+                <span id="receiptModalLabel" style="font-size:13px;color:#374151;">Receipt image</span>
+                <a id="receiptModalOpenLink" href="#" target="_blank" style="color:#991000;font-weight:700;text-decoration:none;">Open full image</a>
+            </div>
+        </div>
+    </div>
 
 <div class="dashboard">
+    <div class="page-header">
+        <div class="page-title">
+            <h1>Seller Dashboard</h1>
+          
+        </div>
+      
+    </div>
 
-<!-- STATS -->
-<div class="stats">
+    <div class="stats">
 
     <div class="stat">
         <h2><?= $total ?></h2>
@@ -644,8 +944,11 @@ button {
 
 <!-- ADD PRODUCT -->
 <div class="card">
+    <h2>List an Item</h2>
+
 
 <form method="POST" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
 <input type="hidden" name="selected_product_id" id="selected_product_id">
    <div class="top-form-row">
     <label class="image-upload">
@@ -662,6 +965,8 @@ button {
 
 
 
+<input type="checkbox" name="seller_terms_accepted" id="sellerTermsAccepted" value="1" required <?= $sellerAcceptedAt ? 'checked' : '' ?> style="display:none;">
+
 <label class="small-label">If Applicable:</label>
 <input type="text" name="location" placeholder="Location">
 
@@ -671,7 +976,6 @@ button {
     <div class="rate-box">
         <label class="small-label">If Applicable:</label>
         <div class="rate-buttons">
-<button type="button" class="rate-option" data-rate="Per Hour">Per Hour</button>
 <button type="button" class="rate-option" data-rate="Per Day">Per Day</button>
 <button type="button" class="rate-option" data-rate="Per Piece">Per Piece</button>
 
@@ -680,6 +984,9 @@ button {
         </div>
     </div>
 </div>
+
+<label class="small-label">Rental Terms &amp; Conditions (for rentals)</label>
+<textarea name="rental_terms" placeholder="Example: Customer is responsible for any damage, loss, or theft; late return penalties apply; replacement cost for unreturned items; security deposit policy."></textarea>
 
 <div class="form-row bottom-row">
     <div class="quantity-box">
@@ -736,8 +1043,8 @@ button {
 
 <!-- PRODUCT LIST -->
 <div class="card">
-
-<h2>Products</h2>
+    <h2>My Products</h2>
+    <p class="card-subtle">Select any listing to edit it, or use the action buttons to manage stock and visibility.</p>
 
 <?php foreach ($products as $p): ?>
 
@@ -751,6 +1058,7 @@ button {
     data-image="<?= htmlspecialchars($p->prod_image) ?>"
     data-location="<?= htmlspecialchars($p->prod_location ?? '') ?>"
     data-rate="<?= htmlspecialchars($p->prod_rate_type ?? '') ?>"
+    data-rental-terms="<?= htmlspecialchars($p->rental_terms ?? '') ?>"
 >
 
     <img src="<?= htmlspecialchars($p->prod_image) ?>">
@@ -768,8 +1076,42 @@ button {
 <?php endforeach; ?>
 
 </div>
-
 </div>
+
+
+<div class="gap" style="margin-top:22px;">
+<div class="card" >
+    <h2>Rental Payment Verification</h2>
+    <?php if (empty($pendingRentalPayments)): ?>
+        <p style="color:#666;">No rental payment proofs are awaiting review.</p>
+    <?php else: ?>
+        <?php foreach ($pendingRentalPayments as $row): ?>
+            <div style="border:1px solid #ddd;border-radius:10px;padding:10px;margin-bottom:10px;">
+                <strong><?= htmlspecialchars($row['prod_name']) ?></strong><br>
+                Customer: <?= htmlspecialchars($row['fullname']) ?> | Contact: <?= htmlspecialchars($row['phone']) ?><br>
+                Status: <?= htmlspecialchars($row['payment_status']) ?><br>
+                <?php if (!empty($row['payment_proof_path'])): ?>
+                    <a href="#" class="open-receipt-modal" data-receipt="<?= htmlspecialchars($row['payment_proof_path']) ?>">View receipt</a>
+                <?php endif; ?>
+                <form method="POST" style="margin-top:8px;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="order_item_id" value="<?= (int)$row['order_item_id'] ?>">
+                    <input type="hidden" name="action" value="verify_payment">
+                    <button type="submit" style="padding:8px 10px;">Approve</button>
+                </form>
+                <form method="POST" style="margin-top:6px;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="order_item_id" value="<?= (int)$row['order_item_id'] ?>">
+                    <input type="hidden" name="action" value="reject_payment">
+                    <input type="text" name="reason" placeholder="Reason for rejection" required style="margin-bottom:6px;">
+                    <button type="submit" style="padding:8px 10px;background:#6b1d13;">Reject</button>
+                </form>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</div>
+</div>
+
 
 </div>
 
@@ -835,6 +1177,9 @@ products.forEach(product => {
 
         document.querySelector('input[name="location"]').value =
             this.dataset.location;
+
+        document.querySelector('textarea[name="rental_terms"]').value =
+            this.dataset.rentalTerms || "";
 
         rateOptions.forEach(btn => btn.classList.remove("selected-rate"));
 
@@ -913,6 +1258,101 @@ rateOptions.forEach(button => {
 const minusQty = document.getElementById("minusQty");
 const plusQty = document.getElementById("plusQty");
 const stockInput = document.getElementById("stockInput");
+const termsModalBackdrop = document.getElementById("termsModalBackdrop");
+const termsAcceptCheckbox = document.getElementById("termsAcceptCheckbox");
+const receiptModalBackdrop = document.getElementById("receiptModalBackdrop");
+const receiptModalImage = document.getElementById("receiptModalImage");
+const receiptModalOpenLink = document.getElementById("receiptModalOpenLink");
+const receiptModalLabel = document.getElementById("receiptModalLabel");
+const closeReceiptModalBtn = document.getElementById("closeReceiptModalBtn");
+const sellerTermsAccepted = document.getElementById("sellerTermsAccepted");
+const acceptTermsBtn = document.getElementById("acceptTermsBtn");
+const acceptTermsForm = document.getElementById("acceptTermsForm");
+const closeTermsBtn = document.getElementById("closeTermsBtn");
+
+function syncTermsAcceptance() {
+    if (sellerTermsAccepted && termsAcceptCheckbox) {
+        sellerTermsAccepted.checked = termsAcceptCheckbox.checked;
+    }
+}
+
+if (acceptTermsForm) {
+    acceptTermsForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        if (!termsAcceptCheckbox.checked) {
+            alert("Please accept the seller terms and conditions to continue.");
+            return;
+        }
+
+        fetch("seller_dashboard.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: new URLSearchParams(new FormData(acceptTermsForm))
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to save your acceptance.");
+            }
+            window.location.reload();
+        })
+        .catch(function () {
+            alert("Unable to save your acceptance. Please try again.");
+        });
+    });
+}
+
+if (closeTermsBtn && termsModalBackdrop) {
+    closeTermsBtn.addEventListener("click", function () {
+        if (!termsAcceptCheckbox || !termsAcceptCheckbox.checked) {
+            window.location.href = "index.php";
+            return;
+        }
+
+        termsModalBackdrop.style.display = "none";
+    });
+}
+
+if (termsModalBackdrop) {
+    termsModalBackdrop.addEventListener("click", function (event) {
+        if (event.target === termsModalBackdrop && (!termsAcceptCheckbox || !termsAcceptCheckbox.checked)) {
+            window.location.href = "index.php";
+        }
+    });
+}
+
+if (termsAcceptCheckbox) {
+    termsAcceptCheckbox.addEventListener("change", syncTermsAcceptance);
+}
+
+function openReceiptModal(path) {
+    if (!receiptModalBackdrop || !receiptModalImage || !receiptModalOpenLink) return;
+    receiptModalImage.src = path;
+    receiptModalOpenLink.href = path;
+    receiptModalLabel.textContent = path.split('/').pop();
+    receiptModalBackdrop.style.display = 'flex';
+}
+
+document.querySelectorAll('.open-receipt-modal').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+        event.preventDefault();
+        openReceiptModal(this.dataset.receipt || '');
+    });
+});
+
+if (closeReceiptModalBtn && receiptModalBackdrop) {
+    closeReceiptModalBtn.addEventListener('click', function () {
+        receiptModalBackdrop.style.display = 'none';
+    });
+}
+
+if (receiptModalBackdrop) {
+    receiptModalBackdrop.addEventListener('click', function (event) {
+        if (event.target === receiptModalBackdrop) {
+            receiptModalBackdrop.style.display = 'none';
+        }
+    });
+}
 
 /* PLUS */
 plusQty.addEventListener("click", function () {

@@ -2,186 +2,57 @@
 
 require_once __DIR__ . '/../app/Database.php';
 require_once __DIR__ . '/../app/auth.php';
+require_once __DIR__ . '/../app/CartRepository.php';
+require_once __DIR__ . '/../app/csrf.php';
 
 require_login();
 $user_id = current_user_id();
 
 $db = new Database();
 $pdo = $db->pdo;
-
+$cartRepo = new CartRepository($pdo);
+$csrf = csrf_token();
 
 /* =========================
-   ADD TO CART (PRODUCT + RENTAL)
+   ADD TO CART / RENT / SERVICE
 ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['product_id'])) {
-
-    $product_id = (int)$_POST['product_id'];
-    $quantity   = (int)($_POST['quantity'] ?? 1);
-
-    // rental fields (optional)
-    $date_from  = $_POST['date_from'] ?? null;
-    $date_to    = $_POST['date_to'] ?? null;
-    $full_name  = $_POST['full_name'] ?? null;
-    $student_no = $_POST['student_no'] ?? null;
-    $age        = $_POST['age'] ?? null;
-    $gender     = $_POST['gender'] ?? null;
-
-    // check existing cart item
-    $check = $pdo->prepare("
-        SELECT id 
-        FROM cart_items 
-        WHERE user_id = ? AND product_id = ?
-    ");
-    $check->execute([$user_id, $product_id]);
-    $existing = $check->fetch(PDO::FETCH_ASSOC);
-
-    if ($existing) {
-
-        // UPDATE (FIXED: now includes rental fields too)
-        $update = $pdo->prepare("
-            UPDATE cart_items 
-            SET 
-                quantity = quantity + ?,
-                date_from = COALESCE(?, date_from),
-                date_to = COALESCE(?, date_to),
-                full_name = COALESCE(?, full_name),
-                student_no = COALESCE(?, student_no),
-                age = COALESCE(?, age),
-                gender = COALESCE(?, gender)
-            WHERE user_id = ? AND product_id = ?
-        ");
-
-        $update->execute([
-            $quantity,
-            $date_from,
-            $date_to,
-            $full_name,
-            $student_no,
-            $age,
-            $gender,
-            $user_id,
-            $product_id
-        ]);
-
-    } else {
-
-        // INSERT NEW ITEM
-        $insert = $pdo->prepare("
-            INSERT INTO cart_items 
-            (
-                user_id,
-                product_id,
-                quantity,
-                date_from,
-                date_to,
-                full_name,
-                student_no,
-                age,
-                gender
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $insert->execute([
-            $user_id,
-            $product_id,
-            $quantity,
-            $date_from,
-            $date_to,
-            $full_name,
-            $student_no,
-            $age,
-            $gender
-        ]);
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        header('Location: cart.php?cart_error=' . urlencode('Invalid security token.'));
+        exit;
     }
 
-    header("Location: cart.php");
-    exit;
+    try {
+        $cartRepo->addItem(
+            $user_id,
+            (int)$_POST['product_id'],
+            max(1, (int)($_POST['quantity'] ?? 1)),
+            $_POST,
+            $_FILES
+        );
+        header("Location: cart.php");
+        exit;
+    } catch (Throwable $e) {
+        header("Location: cart.php?cart_error=" . urlencode($e->getMessage()));
+        exit;
+    }
 }
-
 
 /* =========================
    REMOVE ITEM
 ========================= */
 if (isset($_GET['remove'])) {
-
-    $product_id = (int)$_GET['remove'];
-
-    $stmt = $pdo->prepare("
-        DELETE FROM cart_items
-        WHERE user_id = ? AND product_id = ?
-    ");
-    $stmt->execute([$user_id, $product_id]);
-
+    $cartRepo->removeItem($user_id, (int)$_GET['remove']);
     header("Location: cart.php");
     exit;
 }
 
-
 /* =========================
-   GET CART ITEMS (FIXED)
+   GET CART ITEMS
 ========================= */
-$stmt = $pdo->prepare("
-    SELECT 
-        c.product_id,
-        c.quantity,
-        c.date_from,
-        c.date_to,
-        c.full_name,
-        c.student_no,
-        c.age,
-        c.gender,
-        p.prod_name,
-        p.prod_price,
-        p.prod_image,
-        p.prod_rate_type
-    FROM cart_items c
-    JOIN products p ON p.prod_id = c.product_id
-    WHERE c.user_id = ?
-");
-
-$stmt->execute([$user_id]);
-$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-function getRentalDurationDays(?string $from, ?string $to): int {
-    if (empty($from) || empty($to)) {
-        return 1;
-    }
-
-    $start = strtotime($from);
-    $end = strtotime($to);
-
-    if ($start === false || $end === false || $end < $start) {
-        return 1;
-    }
-
-    $days = (int)floor(($end - $start) / 86400) + 1;
-    return max(1, $days);
-}
-
-function calculateCartSubtotal(float $price, int $quantity, ?string $rateType, ?string $from, ?string $to): float {
-    $duration = getRentalDurationDays($from, $to);
-    $rate = strtolower(trim($rateType ?? ''));
-
-    if ($rate === 'per day') {
-        return $price * $quantity * $duration;
-    }
-
-    if ($rate === 'per hour') {
-        return $price * $quantity * max(1, $duration * 24);
-    }
-
-    return $price * $quantity;
-}
-
-
-/* =========================
-   TOTAL
-========================= */
+$items = $cartRepo->getItemsByUser($user_id);
 $total = 0;
-
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -260,6 +131,14 @@ $total = 0;
             display: flex;
             align-items: center;
             margin-bottom: 18px;
+            cursor: pointer;
+        }
+
+        .cart-check {
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            accent-color: #810C01;
             cursor: pointer;
         }
 
@@ -580,11 +459,15 @@ $total = 0;
     <h1>IskoHub</h1>
 
     <div class="nav-links">
-        <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
-        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+<a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>            
+            <a href="lost_found_inbox.php"><i class="fa-solid fa-box-open">  Inbox</i></a>
+            <a href="account.php"><i class="fa-solid fa-user"></i></a>
+            <a href="logout.php" class="logout-btn">
+Logout
+</a>
     </div>
 </nav>
 
@@ -593,8 +476,20 @@ $total = 0;
     <div class="cart-container">
         <h2>Cart</h2>
 
+        <?php if (isset($_GET['select_error'])): ?>
+            <script>alert('Please check at least one item before checkout.');</script>
+        <?php endif; ?>
+        <?php if (isset($_GET['cart_error'])): ?>
+            <script>alert(<?= json_encode($_GET['cart_error']) ?>);</script>
+        <?php endif; ?>
+
         <?php if (empty($items)): ?>
             <p>Your cart is empty.</p>
+        <?php endif; ?>
+
+        <?php if (!empty($items)): ?>
+        <form method="POST" action="checkout.php" id="checkoutSelectionForm">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
         <?php endif; ?>
 
         <?php foreach ($items as $item): ?>
@@ -603,14 +498,12 @@ $total = 0;
                 $price = (float)$item['prod_price'];
                 $qty = (int)$item['quantity'];
                 $rateType = trim($item['prod_rate_type'] ?? 'Per Piece');
-                $subtotal = calculateCartSubtotal($price, $qty, $rateType, $item['date_from'], $item['date_to']);
+                $subtotal = CartRepository::subtotal($item);
                 $total += $subtotal;
-                $duration = getRentalDurationDays($item['date_from'], $item['date_to']);
+                $duration = CartRepository::rentalDays($item['date_from'] ?? null, $item['date_to'] ?? null);
                 $durationLabel = '';
-                if (strtolower($rateType) === 'per day') {
+                if (strtolower((string)($item['category_type'] ?? '')) === 'rental') {
                     $durationLabel = $duration . ' day' . ($duration > 1 ? 's' : '');
-                } elseif (strtolower($rateType) === 'per hour') {
-                    $durationLabel = ($duration * 24) . ' hour' . ($duration * 24 > 1 ? 's' : '');
                 }
             ?>
 
@@ -618,6 +511,8 @@ $total = 0;
                 class="cart-row"
                 onclick="selectCartItem(event, this)"
                 data-name="<?= htmlspecialchars($item['prod_name'], ENT_QUOTES) ?>"
+                data-product-id="<?= (int)$item['product_id'] ?>"
+                data-cart-item-id="<?= (int)$item['cart_item_id'] ?>"
                 data-price="<?= $price ?>"
                 data-qty="<?= $qty ?>"
                 data-image="<?= htmlspecialchars($item['prod_image'], ENT_QUOTES) ?>"
@@ -627,7 +522,21 @@ $total = 0;
                 data-student-no="<?= htmlspecialchars($item['student_no'] ?? '', ENT_QUOTES) ?>"
                 data-age="<?= htmlspecialchars($item['age'] ?? '', ENT_QUOTES) ?>"
                 data-gender="<?= htmlspecialchars($item['gender'] ?? '', ENT_QUOTES) ?>"
+                data-category-type="<?= htmlspecialchars($item['category_type'] ?? 'product', ENT_QUOTES) ?>"
+                data-max-stock="<?= (int)($item['category_type'] === 'service' ? 99 : ($item['prod_stock'] ?? 1)) ?>"
+                data-service-full-name="<?= htmlspecialchars($item['service_full_name'] ?? '', ENT_QUOTES) ?>"
+                data-service-student-no="<?= htmlspecialchars($item['service_student_no'] ?? '', ENT_QUOTES) ?>"
+                data-print-type="<?= htmlspecialchars($item['print_type'] ?? '', ENT_QUOTES) ?>"
+                data-service-files="<?= htmlspecialchars($item['service_files_text'] ?? '', ENT_QUOTES) ?>"
             >
+
+                <input 
+                    type="checkbox" 
+                    class="cart-check" 
+                    name="selected_items[]" 
+                    value="<?= (int)$item['cart_item_id'] ?>"
+                    onclick="event.stopPropagation();"
+                >
 
                 <div class="cart-item">
 
@@ -635,16 +544,22 @@ $total = 0;
 
                     <div class="cart-info">
                         <h3><?= htmlspecialchars($item['prod_name']) ?></h3>
-                        <p>Price: ₱<?= number_format($price, 2) ?> / <?= htmlspecialchars($rateType) ?></p>
-                        <p>Quantity: <?= $qty ?></p>
+                     
+                      
                         <?php if (!empty($durationLabel)): ?>
                             <p>Duration: <?= htmlspecialchars($durationLabel) ?></p>
+                        <?php endif; ?>
+                        <?php if (($item['category_type'] ?? '') === 'service'): ?>
+                            <p>Files: <?= (int)$qty ?></p>
+                            <?php if (!empty($item['print_type'])): ?>
+                                <p>Print: <?= htmlspecialchars($item['print_type']) ?></p>
+                            <?php endif; ?>
                         <?php endif; ?>
                         <p><strong>Subtotal: ₱<?= number_format($subtotal, 2) ?></strong></p>
                     </div>
 
                     <a class="remove-btn"
-                       href="cart.php?remove=<?= $item['product_id'] ?>">
+                       href="cart.php?remove=<?= $item['cart_item_id'] ?>">
                        Remove
                     </a>
 
@@ -658,10 +573,14 @@ $total = 0;
                 Total: ₱<?= number_format($total, 2) ?>
             </div>
 
-            <button class="checkout-btn" type="button" onclick="window.location.href='checkout.php'">
+            <button class="checkout-btn" type="submit">
                 Checkout
             </button>
         </div>
+
+        <?php if (!empty($items)): ?>
+        </form>
+        <?php endif; ?>
     </div>
 
     <!-- RIGHT PANEL -->
@@ -685,11 +604,14 @@ $total = 0;
                 <p>Price: ₱<span id="detailPrice"></span></p>
             </div>
 
+            <input type="hidden" id="updateCartItemId" value="">
+            <input type="hidden" id="updateCartProductId" value="">
+
             <div class="qty-control">
-                Quantity:
-                <button type="button" onclick="minusQty()">−</button>
-                <span class="qty-num" id="detailQty">0</span>
-                <button type="button" onclick="plusQty()">+</button>
+                Quantity:<span class="qty-num" id="detailQty">0</span>
+                
+                
+             
             </div>
 
             <div class="date-row" id="detailDateRow" style="display:none;">
@@ -720,10 +642,11 @@ $total = 0;
 
 <script>
 function selectCartItem(event, row) {
-    if (event.target.closest('.remove-btn')) {
+    if (event.target.closest('.remove-btn') || event.target.closest('.cart-check')) {
         return;
     }
 
+    const maxStock = parseInt(row.dataset.maxStock || '1', 10) || 1;
     const details = {
         name: row.dataset.name || '',
         price: row.dataset.price || '0.00',
@@ -742,9 +665,13 @@ function selectCartItem(event, row) {
     const dateRow = document.getElementById('detailDateRow');
     const borrowerSection = document.getElementById('borrowerSection');
 
+    const qtyBox = document.getElementById('detailQty');
     document.getElementById('detailName').innerText = details.name;
     document.getElementById('detailPrice').innerText = parseFloat(details.price).toFixed(2);
-    document.getElementById('detailQty').innerText = details.qty;
+    document.getElementById('updateCartItemId').value = row.dataset.cartItemId || '';
+    document.getElementById('updateCartProductId').value = row.dataset.productId || '';
+    qtyBox.dataset.maxStock = String(maxStock);
+    qtyBox.innerText = Math.min(parseInt(details.qty || '1', 10), maxStock);
     document.getElementById('detailImage').src = details.image;
     document.getElementById('fromDate').value = details.dateFrom;
     document.getElementById('toDate').value = details.dateTo;
@@ -766,17 +693,58 @@ function selectCartItem(event, row) {
     });
 }
 
+function getCsrfToken() {
+    return document.querySelector('input[name="csrf_token"]')?.value || '';
+}
+
+function updateQuantityOnServer(newQty) {
+    const cartItemId = document.getElementById('updateCartItemId').value;
+    const productId = document.getElementById('updateCartProductId').value;
+    const csrfToken = getCsrfToken();
+
+    if (!cartItemId || !productId || !csrfToken) {
+        return;
+    }
+
+    const formData = new URLSearchParams();
+    formData.append('csrf_token', csrfToken);
+    formData.append('cart_item_id', cartItemId);
+    formData.append('product_id', productId);
+    formData.append('quantity', String(newQty));
+
+    fetch('update_cart_item.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        body: formData.toString()
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Update failed');
+        }
+        window.location.reload();
+    })
+    .catch(() => {
+        alert('Unable to update quantity right now.');
+    });
+}
+
 function plusQty() {
     const qtyBox = document.getElementById('detailQty');
-    qtyBox.innerText = parseInt(qtyBox.innerText || 0, 10) + 1;
+    const maxStock = parseInt(qtyBox.dataset.maxStock || '1', 10) || 1;
+    const qty = parseInt(qtyBox.innerText || '1', 10);
+    const nextQty = Math.min(qty + 1, maxStock);
+    qtyBox.innerText = nextQty;
+    updateQuantityOnServer(nextQty);
 }
 
 function minusQty() {
     const qtyBox = document.getElementById('detailQty');
-    const qty = parseInt(qtyBox.innerText || 0, 10);
-    if (qty > 1) {
-        qtyBox.innerText = qty - 1;
-    }
+    const qty = parseInt(qtyBox.innerText || '1', 10);
+    const nextQty = qty > 1 ? qty - 1 : 1;
+    qtyBox.innerText = nextQty;
+    updateQuantityOnServer(nextQty);
 }
 
 

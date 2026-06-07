@@ -3,6 +3,13 @@ require_once __DIR__ . '/../app/Database.php';
 
 session_start();
 
+if (isset($_SESSION['registration_success'])) {
+    $registration_message = 'Registration successful. Please log in.';
+    unset($_SESSION['registration_success']);
+} else {
+    $registration_message = '';
+}
+
 $db = new Database();
 $pdo = $db->pdo;
 
@@ -28,8 +35,8 @@ if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
 /* LOGIN PROCESS */
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $user_name = trim($_POST['username']); // form stays "username"
-    $password = $_POST['password'];
+    $user_name = trim($_POST['username'] ?? '');
+    $password = (string)($_POST['password'] ?? '');
 
     $stmt = $pdo->prepare("SELECT * FROM users WHERE user_name = ?");
     $stmt->execute([$user_name]);
@@ -104,9 +111,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 required
             >
 
+            <?php if (!empty($registration_message)) : ?>
+                <p style="color:green; font-weight:600;">
+                    <?= htmlspecialchars($registration_message, ENT_QUOTES, 'UTF-8') ?>
+                </p>
+            <?php endif; ?>
+
             <?php if (!empty($error)) : ?>
                 <p style="color:red;">
-                    <?php echo $error; ?>
+                    <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
                 </p>
             <?php endif; ?>
 

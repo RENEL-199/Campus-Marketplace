@@ -1,0 +1,9 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="240" height="180" rx="24" fill="#FFF7F5"/>
+<circle cx="62" cy="45" r="28" fill="#F1C7C2"/>
+<rect x="60" y="80" width="120" height="58" rx="12" fill="#8B0D04"/>
+<path d="M78 80l18-31h48l18 31H78Z" fill="#B42218"/>
+<circle cx="120" cy="79" r="33" fill="#CBA66A"/>
+<path d="M105 80l10 11 23-26" stroke="#FFF7F5" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="120" y="160" text-anchor="middle" fill="#8B0D04" font-family="Arial" font-size="18" font-weight="800">POST FOUND</text>
+</svg>

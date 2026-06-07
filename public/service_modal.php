@@ -1,8 +1,10 @@
 <?php
 
 require_once __DIR__ . '/../app/ProductRepository.php';
+require_once __DIR__ . '/../app/csrf.php';
 
 $repo = new ProductRepository();
+$csrf = csrf_token();
 
 $id = $_GET['id'] ?? null;
 
@@ -13,12 +15,7 @@ if (!$id) {
 
 $service = null;
 
-foreach ($repo->getAll() as $p) {
-    if ((int)$p->prod_id === (int)$id) {
-        $service = $p;
-        break;
-    }
-}
+$service = $repo->getById((int)$id);
 
 if (!$service) {
     echo "<p>Service not found</p>";
@@ -55,7 +52,7 @@ if (!$service) {
             </div>
 
             <p class="service-owner">
-                <strong>Owner:</strong>
+                <strong>Owner:</strong> <?= htmlspecialchars($service->seller_name ?? 'Unknown Seller') ?>
             </p>
 
             <p class="service-location">
@@ -91,26 +88,14 @@ if (!$service) {
         <h3>Service Form</h3>
 
         <form method="POST" action="cart.php" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
             <input 
                 type="hidden" 
                 name="product_id" 
                 value="<?= htmlspecialchars($service->prod_id) ?>"
             >
 
-            <div class="upload-box" id="uploadPreviewBox">
-
-                <img 
-                    id="previewImage"
-                    src=""
-                    alt="Preview"
-                    style="display:none;"
-                >
-
-                <h4 id="uploadText">
-                    Upload file here
-                </h4>
-
-            </div>
+             <strong><span style="color: red;">Note: For Multiple images, Please Upload it as Pdf file.</span></strong>
 
             <div class="service-files-section">
 

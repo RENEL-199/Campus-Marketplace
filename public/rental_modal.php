@@ -1,8 +1,10 @@
 <?php
 
 require_once __DIR__ . '/../app/ProductRepository.php';
+require_once __DIR__ . '/../app/csrf.php';
 
 $repo = new ProductRepository();
+$csrf = csrf_token();
 
 $id = $_GET['id'] ?? null;
 
@@ -13,12 +15,7 @@ if (!$id) {
 
 $rental = null;
 
-foreach ($repo->getAll() as $p) {
-    if ((int)$p->prod_id === (int)$id) {
-        $rental = $p;
-        break;
-    }
-}
+$rental = $repo->getById((int)$id);
 
 if (!$rental) {
     echo "<p>Rental not found</p>";
@@ -55,7 +52,7 @@ $stock = (int)$rental->prod_stock;
             </div>
 
             <p class="rental-owner">
-                <strong>Owner:</strong>
+                <strong>Owner:</strong> <?= htmlspecialchars($rental->seller_name ?? 'Unknown Seller') ?>
             </p>
 
             <p class="rental-stock">
@@ -66,6 +63,13 @@ $stock = (int)$rental->prod_stock;
                 <h3>Description</h3>
                 <p><?= nl2br(htmlspecialchars($rental->prod_desc)) ?></p>
             </div>
+
+            <?php if (!empty($rental->rental_terms)): ?>
+            <div class="product-desc-box" style="margin-top:12px;">
+                <h3>Rental Terms &amp; Conditions</h3>
+                <p style="white-space:pre-wrap;"><?= nl2br(htmlspecialchars($rental->rental_terms)) ?></p>
+            </div>
+            <?php endif; ?>
 
             <button type="button" class="rent-btn" id="rentThisItemBtn">
                 Rent this Item
@@ -79,6 +83,7 @@ $stock = (int)$rental->prod_stock;
 
         <h3>Borrow Form</h3>
         <form method="POST" action="cart.php">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
     <input type="hidden" name="product_id" value="<?= htmlspecialchars($rental->prod_id) ?>">
 
     <input type="hidden" name="is_rental" value="1">
@@ -123,6 +128,13 @@ $stock = (int)$rental->prod_stock;
         <input type="number" name="age" placeholder="Age" required>
         <input type="text" name="gender" placeholder="Gender" required>
     </div>
+
+    <?php if (!empty($rental->rental_terms)): ?>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#374151;margin-top:8px;">
+        <input type="checkbox" name="rental_terms_accepted" value="1" required>
+        I have reviewed and accept the rental terms and conditions above.
+    </label>
+    <?php endif; ?>
 
     <button type="submit" class="confirm-rent-btn">
         Confirm Request

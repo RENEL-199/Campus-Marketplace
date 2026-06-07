@@ -1,0 +1,9 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="240" height="180" rx="24" fill="#FFF7F5"/>
+<circle cx="180" cy="45" r="28" fill="#F1C7C2"/>
+<rect x="55" y="78" width="94" height="54" rx="12" fill="#8B0D04"/>
+<path d="M70 78l15-28h74l15 28H70Z" fill="#B42218"/>
+<path d="M109 82c0-20 16-36 36-36s36 16 36 36v51h-72V82Z" fill="#CBA66A"/>
+<path d="M132 90l39 39M171 90l-39 39" stroke="#FFF7F5" stroke-width="10" stroke-linecap="round"/>
+<text x="120" y="160" text-anchor="middle" fill="#8B0D04" font-family="Arial" font-size="18" font-weight="800">POST LOST</text>
+</svg>

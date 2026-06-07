@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../app/Database.php';
 
+session_start();
+
 $db = new Database();
 $pdo = $db->pdo;
 
@@ -8,33 +10,34 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $user_name = trim($_POST['username']);
-    $stud_id = trim($_POST['studoid']);
-    $password = $_POST['password'];
-    $reenter_password = $_POST['reenter_password'];
+    $user_name = trim($_POST['username'] ?? '');
+    $stud_id = trim($_POST['studoid'] ?? '');
+    $password = (string)($_POST['password'] ?? '');
+    $reenter_password = (string)($_POST['reenter_password'] ?? '');
 
-    // Validate empty fields
-    if (empty($user_name) || empty($stud_id) || empty($password)) {
-        $error = "All fields are required!";
-    }
+    if ($user_name === '' || $stud_id === '' || $password === '' || $reenter_password === '') {
+        $error = 'All fields are required.';
+    } elseif (strlen($user_name) < 3) {
+        $error = 'Username must be at least 3 characters.';
+    } elseif (strlen($password) < 6) {
+        $error = 'Password must be at least 6 characters.';
+    } elseif ($password !== $reenter_password) {
+        $error = 'Passwords do not match.';
+    } else {
+        $check = $pdo->prepare('SELECT 1 FROM users WHERE user_name = ? OR stud_id = ? LIMIT 1');
+        $check->execute([$user_name, $stud_id]);
 
-    // Check password match
-    elseif ($password !== $reenter_password) {
-        $error = "Passwords do not match!";
-    }
+        if ($check->fetchColumn()) {
+            $error = 'Username or student ID already exists.';
+        } else {
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare('INSERT INTO users (user_name, stud_id, password) VALUES (?, ?, ?)');
+            $stmt->execute([$user_name, $stud_id, $hashedPassword]);
 
-    else {
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-        $stmt = $pdo->prepare("
-            INSERT INTO users (user_name, stud_id, password)
-            VALUES (?, ?, ?)
-        ");
-
-        $stmt->execute([$user_name, $stud_id, $hashedPassword]);
-
-        header("Location: login.php");
-        exit;
+            $_SESSION['registration_success'] = true;
+            header('Location: login.php');
+            exit;
+        }
     }
 }
 ?>

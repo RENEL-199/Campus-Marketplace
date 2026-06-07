@@ -1,8 +1,10 @@
 <?php
 
 require_once __DIR__ . '/../app/ProductRepository.php';
+require_once __DIR__ . '/../app/csrf.php';
 
 $repo = new ProductRepository();
+$csrf = csrf_token();
 
 $id = $_GET['id'] ?? null;
 
@@ -13,12 +15,7 @@ if (!$id) {
 
 $product = null;
 
-foreach ($repo->getAll() as $p) {
-    if ((int)$p->prod_id === (int)$id) {
-        $product = $p;
-        break;
-    }
-}
+$product = $repo->getById((int)$id);
 
 if (!$product) {
     echo "<p>Product not found</p>";
@@ -68,7 +65,7 @@ $stock = (int)$product->prod_stock;
         </div>
 
         <div class="seller">
-            <strong>Seller:</strong>
+            <strong>Seller:</strong> <?= htmlspecialchars($product->seller_name ?? 'Unknown Seller') ?>
         </div>
 
         <div class="stock">
@@ -85,6 +82,8 @@ $stock = (int)$product->prod_stock;
             <?php if ($stock > 0): ?>
 
                 <form method="POST" action="cart.php">
+
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
 
                     <input 
                         type="hidden" 

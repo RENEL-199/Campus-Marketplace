@@ -1,40 +1,33 @@
 <?php
-session_start();
+require_once __DIR__ . '/../app/Database.php';
+require_once __DIR__ . '/../app/auth.php';
+require_once __DIR__ . '/../app/CartRepository.php';
 
-if (!isset($_SESSION['cart_items'])) {
-    $_SESSION['cart_items'] = [];
+require_login();
+
+$user_id = current_user_id();
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: cart.php');
+    exit;
 }
 
-$product_id = $_POST['product_id'] ?? null;
-$name = $_POST['name'] ?? '';
-$price = (float)($_POST['price'] ?? 0);
-$quantity = (int)($_POST['quantity'] ?? 1);
-$image = $_POST['image'] ?? '';
+$product_id = (int)($_POST['product_id'] ?? 0);
+$quantity = max(1, (int)($_POST['quantity'] ?? 1));
 
-if (!$product_id) {
-    die("Invalid product");
+if ($product_id <= 0) {
+    header('Location: cart.php?cart_error=' . urlencode('Invalid product.'));
+    exit;
 }
 
-/* CHECK IF ALREADY IN CART */
-$found = false;
+try {
+    $db = new Database();
+    $cartRepo = new CartRepository($db->pdo);
+    $cartRepo->addItem($user_id, $product_id, $quantity, $_POST, $_FILES);
 
-foreach ($_SESSION['cart_items'] as &$item) {
-    if ($item['cart_id'] == $product_id) {
-        $item['quantity'] += $quantity;
-        $found = true;
-        break;
-    }
+    header('Location: cart.php');
+    exit;
+} catch (Throwable $e) {
+    header('Location: cart.php?cart_error=' . urlencode($e->getMessage()));
+    exit;
 }
-
-if (!$found) {
-    $_SESSION['cart_items'][] = [
-        "cart_id" => $product_id,
-        "name" => $name,
-        "price" => $price,
-        "quantity" => $quantity,
-        "image" => $image
-    ];
-}
-
-header("Location: cart.php");
-exit;

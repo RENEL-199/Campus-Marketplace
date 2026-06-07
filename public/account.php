@@ -42,18 +42,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $profile['birthday'] = trim($_POST['birthday'] ?? '');
     $profile['gender'] = trim($_POST['gender'] ?? '');
 
-    if (!empty($_FILES['profile_picture']['name'])) {
-        $uploadDir = __DIR__ . '/uploads/profile/';
+    if (!empty($_FILES['profile_picture']['name']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+        $allowedTypes = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp'
+        ];
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
+        $tmpName = $_FILES['profile_picture']['tmp_name'];
+        $mimeType = mime_content_type($tmpName);
 
-        $fileName = time() . '_' . basename($_FILES['profile_picture']['name']);
-        $targetPath = $uploadDir . $fileName;
+        if (isset($allowedTypes[$mimeType])) {
+            $uploadDir = __DIR__ . '/uploads/profile/';
 
-        if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $targetPath)) {
-            $profile['profile_picture'] = 'uploads/profile/' . $fileName;
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+
+            $fileName = time() . '_' . bin2hex(random_bytes(8)) . '.' . $allowedTypes[$mimeType];
+            $targetPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($tmpName, $targetPath)) {
+                $profile['profile_picture'] = 'uploads/profile/' . $fileName;
+            }
         }
     }
 
@@ -220,11 +232,15 @@ input, select {
     <h1>IskoHub</h1>
 
     <div class="nav-links">
-        <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
-        <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
-        <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
-        <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
-        <a href="account.php"><i class="fa-solid fa-user"></i></a>
+<a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>            
+            <a href="lost_found_inbox.php"><i class="fa-solid fa-box-open">  Inbox</i></a>
+            <a href="account.php"><i class="fa-solid fa-user"></i></a>
+            <a href="logout.php" class="logout-btn">
+Logout
+</a>
     </div>
 </nav>
 

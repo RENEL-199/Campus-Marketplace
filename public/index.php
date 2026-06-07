@@ -50,7 +50,7 @@ function filterByCategory($products, $allowedCategories, $selectedCategory = nul
 /* =========================
    FEATURED ITEMS (1,2,4)
 ========================= */
-$featured_items = filterByCategory($products, [1, 2, 4], $category);
+$featured_items = filterByCategory($products, [1, 2, 4, 6], $category);
 
 /* =========================
    RENTALS (5)
@@ -76,7 +76,23 @@ $featured_services = filterByCategory($products, [3], $category);
     <link rel="stylesheet" href="../assets/index-style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <style> nav {
+    <style>
+    
+.logout-btn{
+    background:#810C01;
+    color:white;
+    padding:8px 15px;
+    border-radius:8px;
+    text-decoration:none;
+    font-weight:600;
+    transition:.3s;
+}
+
+.logout-btn:hover{
+    background:#5f0801;
+}
+
+     nav {
             height: 58px;
             background: #810C01;
             color: white;
@@ -108,7 +124,38 @@ $featured_services = filterByCategory($products, [3], $category);
         nav i {
             margin-right: 4px;
             font-size: 13px;
-        }</style>
+        }
+
+        /* Lost & Found integration */
+        .categories .category.active {
+            background: #8b0d04 !important;
+            color: #fff !important;
+            border-color: #8b0d04 !important;
+        }
+
+        .lost-found-card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .lost-found-card .lost-found-icon-box {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #fff7f6, #f1d6d3);
+            border-radius: 14px 14px 0 0;
+            overflow: hidden;
+        }
+
+        .lost-found-card .lost-found-icon-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    </style>
 </head>
 
 <body>
@@ -120,15 +167,19 @@ $featured_services = filterByCategory($products, [3], $category);
             <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
             <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
             <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
-            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
+            <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>            
+            <a href="lost_found_inbox.php"><i class="fa-solid fa-box-open">  Inbox</i></a>
             <a href="account.php"><i class="fa-solid fa-user"></i></a>
+            <a href="logout.php" class="logout-btn">
+Logout
+</a>
         </div>
     </nav>
 
     <!-- HERO -->
     <section class="hero">
         <h2>Buy & Sell Campus Essentials</h2>
-
+        
         <form method="GET" class="search-box">
             <input type="text" name="q" placeholder="Search items..."
                 value="<?= htmlspecialchars($search ?? '') ?>">
@@ -137,6 +188,7 @@ $featured_services = filterByCategory($products, [3], $category);
     </section>
 
     <div class="container">
+        
 
         <!-- CATEGORIES -->
         <h2 class="section-title">Categories</h2>
@@ -148,10 +200,12 @@ $featured_services = filterByCategory($products, [3], $category);
             <a class="category <?= $category == 3 ? 'active' : '' ?>" href="index.php?category=3">Services</a>
             <a class="category <?= $category == 4 ? 'active' : '' ?>" href="index.php?category=4">Preloved</a>
             <a class="category <?= $category == 5 ? 'active' : '' ?>" href="index.php?category=5">Rentals</a>
+            <a class="category <?= $category == 6 ? 'active' : '' ?>" href="index.php?category=6">Others</a>
+         
         </div>
 
         <!-- FEATURED ITEMS -->
-        <?php if (!$category || in_array($category, [1, 2, 4])): ?>
+        <?php if (!$category || in_array($category, [1, 2, 4, 6])): ?>
 
             <div class="section-title">Featured Items</div>
 
@@ -190,6 +244,32 @@ $featured_services = filterByCategory($products, [3], $category);
             <div class="section-title">Featured Services</div>
 
             <div class="grid">
+
+                <a href="lost_found.php" class="lost-found-card-link">
+                    <div class="card lost-found-card">
+                        <div class="lost-found-icon-box">
+                            <img src="uploads/lost_found-default.png" alt="Lost and Found">
+                        </div>
+
+                        <div class="card-content">
+                            <div class="card-top-row">
+                                <h3>Lost & Found</h3>
+                                <span class="category-tag">Services</span>
+                            </div>
+
+                            <p class="card-description">
+                                Report lost items or post found items on campus.
+                            </p>
+
+                            <div class="card-price-stock-row">
+                                <div class="price">Free</div>
+                                <div class="stock">Campus</div>
+                            </div>
+
+                            <button type="button">Open Lost & Found</button>
+                        </div>
+                    </div>
+                </a>
 
                 <?php if (empty($featured_services)): ?>
                     <p>No services found.</p>
