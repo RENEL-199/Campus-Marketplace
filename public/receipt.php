@@ -21,14 +21,14 @@ $stmt = $pdo->prepare("
     SELECT 
         oi.*, p.prod_name,
         p.rate_type,
-        orr.rental_days AS rental_duration,
-        ois.file_count,
-        GROUP_CONCAT(oisf.original_filename ORDER BY oisf.service_file_id SEPARATOR '||') AS service_files_text
+        rd.rental_days AS rental_duration,
+        sd.file_count,
+        GROUP_CONCAT(sf.original_filename ORDER BY sf.service_file_id SEPARATOR '||') AS service_files_text
     FROM order_items oi
     JOIN products p ON p.prod_id = oi.product_id
-    LEFT JOIN order_item_rentals orr ON orr.order_item_id = oi.order_item_id
-    LEFT JOIN order_item_services ois ON ois.order_item_id = oi.order_item_id
-    LEFT JOIN order_item_service_files oisf ON oisf.order_item_id = oi.order_item_id
+    LEFT JOIN rental_details rd ON rd.ref_id = oi.order_item_id AND rd.ref_type = 'order'
+    LEFT JOIN service_details sd ON sd.ref_id = oi.order_item_id AND sd.ref_type = 'order'
+    LEFT JOIN service_files sf ON sf.ref_id = oi.order_item_id AND sf.ref_type = 'order'
     WHERE oi.order_id = ?
     GROUP BY oi.order_item_id
 ");

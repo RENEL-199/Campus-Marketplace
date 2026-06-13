@@ -40,29 +40,37 @@ if ($quantity > $availableStock) {
     exit;
 }
 
+// Update quantity on cart_items
 $stmt = $pdo->prepare("
     UPDATE cart_items
-    SET quantity = ?,
-        date_from = ?,
-        date_to = ?,
-        full_name = ?,
-        student_no = ?,
-        age = ?,
-        gender = ?
+    SET quantity = ?
     WHERE user_id = ? AND product_id = ?
 ");
+$stmt->execute([$quantity, $user_id, $product_id]);
 
-$stmt->execute([
-    $quantity,
-    $date_from,
-    $date_to,
-    $full_name,
-    $student_no,
-    $age,
-    $gender,
-    $user_id,
-    $product_id
-]);
+// Find the cart_item_id to update rental details
+$cartStmt = $pdo->prepare("SELECT cart_item_id FROM cart_items WHERE user_id = ? AND product_id = ? LIMIT 1");
+$cartStmt->execute([$user_id, $product_id]);
+$cartItemId = $cartStmt->fetchColumn();
+
+if ($cartItemId && $date_from && $date_to) {
+    $rentalDays = max(1, (int)floor((strtotime($date_to) - strtotime($date_from)) / 86400) + 1);
+    $updateRental = $pdo->prepare("
+        UPDATE rental_details
+        SET date_from = ?, date_to = ?, rental_days = ?, borrower_name = ?, student_no = ?, age = ?, gender = ?
+        WHERE ref_type = 'cart' AND ref_id = ?
+    ");
+    $updateRental->execute([
+        $date_from,
+        $date_to,
+        $rentalDays,
+        $full_name ?? '',
+        $student_no ?? '',
+        $age,
+        $gender,
+        $cartItemId
+    ]);
+}
 
 header("Location: cart.php");
 exit;
