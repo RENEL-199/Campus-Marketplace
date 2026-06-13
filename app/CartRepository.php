@@ -68,22 +68,22 @@ class CartRepository {
                 p.rate_type AS prod_rate_type,
                 p.prod_stock,
                 c.category_type,
-                cr.date_from,
-                cr.date_to,
-                cr.borrower_name AS full_name,
-                cr.student_no,
-                cr.age,
-                cr.gender,
-                cs.full_name AS service_full_name,
-                cs.student_no AS service_student_no,
-                cs.print_type,
-                GROUP_CONCAT(csf.original_filename ORDER BY csf.service_file_id SEPARATOR '||') AS service_files_text
+                rd.date_from,
+                rd.date_to,
+                rd.borrower_name AS full_name,
+                rd.student_no,
+                rd.age,
+                rd.gender,
+                sd.full_name AS service_full_name,
+                sd.student_no AS service_student_no,
+                sd.print_type,
+                GROUP_CONCAT(sf.original_filename ORDER BY sf.service_file_id SEPARATOR '||') AS service_files_text
             FROM cart_items ci
             JOIN products p ON p.prod_id = ci.product_id
             LEFT JOIN categories c ON c.category_id = p.category_id
-            LEFT JOIN cart_item_rentals cr ON cr.cart_item_id = ci.cart_item_id
-            LEFT JOIN cart_item_services cs ON cs.cart_item_id = ci.cart_item_id
-            LEFT JOIN cart_item_service_files csf ON csf.cart_item_id = ci.cart_item_id
+            LEFT JOIN rental_details rd ON rd.ref_id = ci.cart_item_id AND rd.ref_type = 'cart'
+            LEFT JOIN service_details sd ON sd.ref_id = ci.cart_item_id AND sd.ref_type = 'cart'
+            LEFT JOIN service_files sf ON sf.ref_id = ci.cart_item_id AND sf.ref_type = 'cart'
             WHERE ci.user_id = ?
             GROUP BY ci.cart_item_id
             ORDER BY ci.cart_item_id DESC
@@ -109,22 +109,22 @@ class CartRepository {
                 p.rate_type AS prod_rate_type,
                 p.prod_stock,
                 c.category_type,
-                cr.date_from,
-                cr.date_to,
-                cr.borrower_name AS full_name,
-                cr.student_no,
-                cr.age,
-                cr.gender,
-                cs.full_name AS service_full_name,
-                cs.student_no AS service_student_no,
-                cs.print_type,
-                GROUP_CONCAT(csf.original_filename ORDER BY csf.service_file_id SEPARATOR '||') AS service_files_text
+                rd.date_from,
+                rd.date_to,
+                rd.borrower_name AS full_name,
+                rd.student_no,
+                rd.age,
+                rd.gender,
+                sd.full_name AS service_full_name,
+                sd.student_no AS service_student_no,
+                sd.print_type,
+                GROUP_CONCAT(sf.original_filename ORDER BY sf.service_file_id SEPARATOR '||') AS service_files_text
             FROM cart_items ci
             JOIN products p ON p.prod_id = ci.product_id
             LEFT JOIN categories c ON c.category_id = p.category_id
-            LEFT JOIN cart_item_rentals cr ON cr.cart_item_id = ci.cart_item_id
-            LEFT JOIN cart_item_services cs ON cs.cart_item_id = ci.cart_item_id
-            LEFT JOIN cart_item_service_files csf ON csf.cart_item_id = ci.cart_item_id
+            LEFT JOIN rental_details rd ON rd.ref_id = ci.cart_item_id AND rd.ref_type = 'cart'
+            LEFT JOIN service_details sd ON sd.ref_id = ci.cart_item_id AND sd.ref_type = 'cart'
+            LEFT JOIN service_files sf ON sf.ref_id = ci.cart_item_id AND sf.ref_type = 'cart'
             WHERE ci.user_id = ? AND ci.cart_item_id IN ($placeholders)
             GROUP BY ci.cart_item_id
             ORDER BY ci.cart_item_id DESC
@@ -134,6 +134,7 @@ class CartRepository {
     }
 
     public function removeItem(int $userId, int $cartItemId): void {
+        $this->deleteRelatedDetails($cartItemId);
         $stmt = $this->pdo->prepare("DELETE FROM cart_items WHERE user_id = ? AND cart_item_id = ?");
         $stmt->execute([$userId, $cartItemId]);
     }
@@ -142,6 +143,12 @@ class CartRepository {
         $cartItemIds = array_values(array_unique(array_filter(array_map('intval', $cartItemIds), fn($id) => $id > 0)));
         if (empty($cartItemIds)) return;
         $placeholders = implode(',', array_fill(0, count($cartItemIds), '?'));
+
+        // Delete related details from unified tables
+        foreach ($cartItemIds as $cartItemId) {
+            $this->deleteRelatedDetails($cartItemId);
+        }
+
         $params = array_merge([$userId], $cartItemIds);
         $stmt = $this->pdo->prepare("DELETE FROM cart_items WHERE user_id = ? AND cart_item_id IN ($placeholders)");
         $stmt->execute($params);
@@ -178,10 +185,10 @@ class CartRepository {
         $stmt = $this->pdo->prepare(" 
             SELECT ci.*
             FROM cart_items ci
-            LEFT JOIN cart_item_rentals cr ON cr.cart_item_id = ci.cart_item_id
-            LEFT JOIN cart_item_services cs ON cs.cart_item_id = ci.cart_item_id
+            LEFT JOIN rental_details rd ON rd.ref_id = ci.cart_item_id AND rd.ref_type = 'cart'
+            LEFT JOIN service_details sd ON sd.ref_id = ci.cart_item_id AND sd.ref_type = 'cart'
             WHERE ci.user_id = ? AND ci.product_id = ?
-              AND cr.cart_item_id IS NULL AND cs.cart_item_id IS NULL
+              AND rd.id IS NULL AND sd.id IS NULL
             LIMIT 1
         ");
         $stmt->execute([$userId, $productId]);
@@ -197,14 +204,17 @@ class CartRepository {
 
     private function insertRentalDetails(int $cartItemId, array $data): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO cart_item_rentals
-            (cart_item_id, date_from, date_to, borrower_name, student_no, age, gender)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO rental_details
+            (ref_type, ref_id, date_from, date_to, rental_days, borrower_name, student_no, age, gender)
+            VALUES ('cart', ?, ?, ?, ?, ?, ?, ?, ?)
         ");
+        $dateFrom = $data['date_from'] ?? date('Y-m-d');
+        $dateTo = $data['date_to'] ?? date('Y-m-d');
         $stmt->execute([
             $cartItemId,
-            $data['date_from'] ?? date('Y-m-d'),
-            $data['date_to'] ?? date('Y-m-d'),
+            $dateFrom,
+            $dateTo,
+            self::rentalDays($dateFrom, $dateTo),
             trim($data['full_name'] ?? ''),
             trim($data['student_no'] ?? ''),
             isset($data['age']) && $data['age'] !== '' ? (int)$data['age'] : null,
@@ -214,8 +224,8 @@ class CartRepository {
 
     private function insertServiceDetails(int $cartItemId, array $data): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO cart_item_services (cart_item_id, full_name, student_no, print_type)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO service_details (ref_type, ref_id, full_name, student_no, print_type)
+            VALUES ('cart', ?, ?, ?, ?)
         ");
         $stmt->execute([
             $cartItemId,
@@ -227,10 +237,16 @@ class CartRepository {
 
     private function insertServiceFile(int $cartItemId, array $file): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO cart_item_service_files (cart_item_id, original_filename, stored_filename, file_path)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO service_files (ref_type, ref_id, original_filename, stored_filename, file_path)
+            VALUES ('cart', ?, ?, ?, ?)
         ");
         $stmt->execute([$cartItemId, $file['original'], $file['stored'], $file['path']]);
+    }
+
+    private function deleteRelatedDetails(int $cartItemId): void {
+        $this->pdo->prepare("DELETE FROM rental_details WHERE ref_type = 'cart' AND ref_id = ?")->execute([$cartItemId]);
+        $this->pdo->prepare("DELETE FROM service_details WHERE ref_type = 'cart' AND ref_id = ?")->execute([$cartItemId]);
+        $this->pdo->prepare("DELETE FROM service_files WHERE ref_type = 'cart' AND ref_id = ?")->execute([$cartItemId]);
     }
 
     private function saveServiceFilesFromUpload(array $files): array {
