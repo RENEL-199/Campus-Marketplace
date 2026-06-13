@@ -166,8 +166,10 @@ $featured_services = filterByCategory($products, [3], $category);
         <div>
             <a href="index.php"><i class="fa-solid fa-house"></i> Home</a>
             <a href="cart.php"><i class="fa-solid fa-cart-shopping"></i> Cart</a>
+            <a href="inbox.php"><i class="fa-solid fa-envelope"></i> Inbox</a>
             <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
             <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
+            <a href="seller_orders.php"><i class="fa-solid fa-clipboard-list"></i> Seller Orders</a>
             <a href="account.php"><i class="fa-solid fa-user"></i></a>
             <a href="logout.php" class="logout-btn">
     Logout

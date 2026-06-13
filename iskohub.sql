@@ -3,9 +3,15 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: May 30, 2026 at 01:08 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
+--
+-- NORMALIZED SCHEMA: 12 tables
+-- Removed unused: lost_found_items, lost_found_messages
+-- Merged: cart_item_rentals + order_item_rentals -> rental_details
+-- Merged: cart_item_services + order_item_services -> service_details
+-- Merged: cart_item_service_files + order_item_service_files -> service_files
+-- Added: notifications (for order approve/reject inbox)
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -24,61 +30,33 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Table structure for table `cart_items`
+-- Table structure for table `users`
 --
 
-CREATE TABLE `cart_items` (
-  `cart_item_id` int(11) NOT NULL,
+CREATE TABLE `users` (
   `user_id` int(11) NOT NULL,
-  `product_id` int(11) NOT NULL,
-  `quantity` int(11) NOT NULL DEFAULT 1,
-  `selected_for_checkout` tinyint(1) NOT NULL DEFAULT 0,
+  `user_name` varchar(255) NOT NULL,
+  `stud_id` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `remember_token` varchar(255) DEFAULT NULL,
+  `profile_pic` varchar(255) DEFAULT NULL,
+  `course` varchar(100) DEFAULT NULL,
+  `year_level` varchar(50) DEFAULT NULL,
+  `age` int(11) DEFAULT NULL,
+  `gender` varchar(20) DEFAULT NULL,
+  `birthday` date DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `contact_number` varchar(50) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
 --
--- Table structure for table `cart_item_rentals`
+-- Dumping data for table `users`
 --
 
-CREATE TABLE `cart_item_rentals` (
-  `cart_item_id` int(11) NOT NULL,
-  `date_from` date NOT NULL,
-  `date_to` date NOT NULL,
-  `borrower_name` varchar(255) NOT NULL,
-  `student_no` varchar(100) NOT NULL,
-  `age` int(11) DEFAULT NULL,
-  `gender` varchar(50) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `cart_item_services`
---
-
-CREATE TABLE `cart_item_services` (
-  `cart_item_id` int(11) NOT NULL,
-  `full_name` varchar(255) NOT NULL,
-  `student_no` varchar(100) NOT NULL,
-  `print_type` enum('B&W','Colored') NOT NULL DEFAULT 'B&W'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `cart_item_service_files`
---
-
-CREATE TABLE `cart_item_service_files` (
-  `service_file_id` int(11) NOT NULL,
-  `cart_item_id` int(11) NOT NULL,
-  `original_filename` varchar(255) NOT NULL,
-  `stored_filename` varchar(255) NOT NULL,
-  `file_path` varchar(255) NOT NULL,
-  `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO `users` (`user_id`, `user_name`, `stud_id`, `password`, `remember_token`, `profile_pic`, `course`, `year_level`, `age`, `gender`, `birthday`, `address`, `contact_number`, `email`, `created_at`) VALUES
+(1, 'Admin', 'Admin-00', '$2y$10$BlRgUJ/bKa.MkwNIGby/6OuBOy9JOTWfv8FEWgyYCuxVsacEMUvti', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-30 10:58:50');
 
 -- --------------------------------------------------------
 
@@ -107,88 +85,45 @@ INSERT INTO `categories` (`category_id`, `category_name`, `category_type`) VALUE
 -- --------------------------------------------------------
 
 --
--- Table structure for table `lost_found_claims`
+-- Table structure for table `products`
 --
 
-CREATE TABLE `lost_found_claims` (
-  `id` int(11) NOT NULL,
-  `item_id` int(11) NOT NULL,
-  `item_type` enum('lost','found') NOT NULL,
-  `claimant_name` varchar(255) NOT NULL,
-  `claimant_program` varchar(255) DEFAULT NULL,
-  `claimant_contact` varchar(100) DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `user_id` int(11) DEFAULT NULL,
+CREATE TABLE `products` (
+  `prod_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `category_id` int(11) NOT NULL,
+  `prod_name` varchar(255) NOT NULL,
+  `prod_desc` text NOT NULL,
+  `prod_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `prod_image` varchar(255) DEFAULT NULL,
+  `prod_stock` int(11) NOT NULL DEFAULT 0,
+  `location` varchar(255) DEFAULT NULL,
+  `rate_type` enum('Per Piece','Per Day') DEFAULT NULL,
+  `status` enum('active','inactive','deleted') NOT NULL DEFAULT 'active',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `deleted_by_owner` tinyint(1) NOT NULL DEFAULT 0,
-  `deleted_by_claimant` tinyint(1) NOT NULL DEFAULT 0
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `products`
+--
+
+INSERT INTO `products` (`prod_id`, `user_id`, `category_id`, `prod_name`, `prod_desc`, `prod_price`, `prod_image`, `prod_stock`, `location`, `rate_type`, `status`, `created_at`, `updated_at`) VALUES
+(1, 1, 3, 'Printing Service', 'Our Printing Service provides fast, affordable, and high-quality printing solutions for students and campus members. Whether you need assignments, research papers, reviewers, handouts, reports, certificates, or other academic documents printed, we ensure clear and professional results. Simply upload your files, choose your preferred print option, and submit your request. We offer both black-and-white and colored printing with reliable service and quick turnaround times to help you meet your deadlines.', 10.00, 'uploads/1780138834_1780134383_ChatGPT Image May 30, 2026, 05_22_00 PM.png', 100, 'Inside PUP Campus', 'Per Piece', 'active', '2026-05-30 11:00:34', NULL);
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `lost_found_items`
+-- Table structure for table `cart_items`
 --
 
-CREATE TABLE `lost_found_items` (
-  `item_id` int(11) NOT NULL,
-  `posted_by` int(11) NOT NULL,
-  `item_type` enum('lost','found') NOT NULL,
-  `item_name` varchar(255) NOT NULL,
-  `description` text NOT NULL,
-  `contact_name` varchar(255) NOT NULL,
-  `program_year` varchar(255) DEFAULT NULL,
-  `contact_info` varchar(100) DEFAULT NULL,
-  `social_media` varchar(255) DEFAULT NULL,
-  `image_path` varchar(255) DEFAULT NULL,
-  `status` enum('active','claimed','deleted') NOT NULL DEFAULT 'active',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `claimed_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `lost_found_messages`
---
-
-CREATE TABLE `lost_found_messages` (
-  `message_id` int(11) NOT NULL,
-  `item_id` int(11) NOT NULL,
-  `sender_id` int(11) NOT NULL,
-  `receiver_id` int(11) NOT NULL,
-  `sender_name` varchar(255) NOT NULL,
-  `sender_program` varchar(255) DEFAULT NULL,
-  `sender_contact` varchar(100) DEFAULT NULL,
-  `sender_social` varchar(255) DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `status` enum('pending','closed') NOT NULL DEFAULT 'pending',
-  `deleted_by_sender` tinyint(1) NOT NULL DEFAULT 0,
-  `deleted_by_receiver` tinyint(1) NOT NULL DEFAULT 0,
+CREATE TABLE `cart_items` (
+  `cart_item_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL DEFAULT 1,
+  `selected_for_checkout` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `lost_items`
---
-
-CREATE TABLE `lost_items` (
-  `id` int(11) NOT NULL,
-  `item_name` varchar(255) NOT NULL,
-  `description` text NOT NULL,
-  `owner_name` varchar(255) DEFAULT NULL,
-  `program` varchar(255) DEFAULT NULL,
-  `contact` varchar(100) DEFAULT NULL,
-  `social` varchar(255) DEFAULT NULL,
-  `image` varchar(255) DEFAULT NULL,
-  `user_id` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `type` enum('lost','found') NOT NULL DEFAULT 'lost',
-  `status` enum('open','claimed') NOT NULL DEFAULT 'open',
-  `claimed_claim_id` int(11) DEFAULT NULL,
-  `claimed_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -228,11 +163,14 @@ CREATE TABLE `order_items` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `order_item_rentals`
+-- Table structure for table `rental_details`
+-- (merged from cart_item_rentals and order_item_rentals)
 --
 
-CREATE TABLE `order_item_rentals` (
-  `order_item_id` int(11) NOT NULL,
+CREATE TABLE `rental_details` (
+  `id` int(11) NOT NULL,
+  `ref_type` enum('cart','order') NOT NULL,
+  `ref_id` int(11) NOT NULL,
   `date_from` date NOT NULL,
   `date_to` date NOT NULL,
   `rental_days` int(11) NOT NULL DEFAULT 1,
@@ -245,11 +183,14 @@ CREATE TABLE `order_item_rentals` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `order_item_services`
+-- Table structure for table `service_details`
+-- (merged from cart_item_services and order_item_services)
 --
 
-CREATE TABLE `order_item_services` (
-  `order_item_id` int(11) NOT NULL,
+CREATE TABLE `service_details` (
+  `id` int(11) NOT NULL,
+  `ref_type` enum('cart','order') NOT NULL,
+  `ref_id` int(11) NOT NULL,
   `full_name` varchar(255) NOT NULL,
   `student_no` varchar(100) NOT NULL,
   `print_type` enum('B&W','Colored') NOT NULL DEFAULT 'B&W',
@@ -259,352 +200,201 @@ CREATE TABLE `order_item_services` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `order_item_service_files`
+-- Table structure for table `service_files`
+-- (merged from cart_item_service_files and order_item_service_files)
 --
 
-CREATE TABLE `order_item_service_files` (
+CREATE TABLE `service_files` (
   `service_file_id` int(11) NOT NULL,
-  `order_item_id` int(11) NOT NULL,
+  `ref_type` enum('cart','order') NOT NULL,
+  `ref_id` int(11) NOT NULL,
   `original_filename` varchar(255) NOT NULL,
   `stored_filename` varchar(255) NOT NULL,
-  `file_path` varchar(255) NOT NULL
+  `file_path` varchar(255) NOT NULL,
+  `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `products`
+-- Table structure for table `notifications`
+-- (buyer inbox: order approved/rejected by seller)
 --
 
-CREATE TABLE `products` (
-  `prod_id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `category_id` int(11) NOT NULL,
-  `prod_name` varchar(255) NOT NULL,
-  `prod_desc` text NOT NULL,
-  `prod_price` decimal(10,2) NOT NULL DEFAULT 0.00,
-  `prod_image` varchar(255) DEFAULT NULL,
-  `prod_stock` int(11) NOT NULL DEFAULT 0,
-  `location` varchar(255) DEFAULT NULL,
-  `rate_type` enum('Per Piece','Per Day') DEFAULT NULL,
-  `status` enum('active','inactive','deleted') NOT NULL DEFAULT 'active',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `products`
---
-
-INSERT INTO `products` (`prod_id`, `user_id`, `category_id`, `prod_name`, `prod_desc`, `prod_price`, `prod_image`, `prod_stock`, `location`, `rate_type`, `status`, `created_at`, `updated_at`) VALUES
-(1, 1, 3, 'Printing Service', 'Our Printing Service provides fast, affordable, and high-quality printing solutions for students and campus members. Whether you need assignments, research papers, reviewers, handouts, reports, certificates, or other academic documents printed, we ensure clear and professional results. Simply upload your files, choose your preferred print option, and submit your request. We offer both black-and-white and colored printing with reliable service and quick turnaround times to help you meet your deadlines.', 10.00, 'uploads/1780138834_1780134383_ChatGPT Image May 30, 2026, 05_22_00 PM.png', 100, 'Inside PUP Campus', 'Per Piece', 'active', '2026-05-30 11:00:34', NULL);
-
--- --------------------------------------------------------
-
---
--- Table structure for table `users`
---
-
-CREATE TABLE `users` (
-  `user_id` int(11) NOT NULL,
-  `user_name` varchar(255) NOT NULL,
-  `stud_id` varchar(255) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `remember_token` varchar(255) DEFAULT NULL,
-  `profile_pic` varchar(255) DEFAULT NULL,
-  `course` varchar(100) DEFAULT NULL,
-  `year_level` varchar(50) DEFAULT NULL,
-  `age` int(11) DEFAULT NULL,
-  `gender` varchar(20) DEFAULT NULL,
-  `birthday` date DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `contact_number` varchar(50) DEFAULT NULL,
-  `email` varchar(100) DEFAULT NULL,
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL COMMENT 'buyer who receives the notification',
+  `order_id` int(11) NOT NULL,
+  `type` enum('approved','rejected') NOT NULL,
+  `message` text DEFAULT NULL COMMENT 'optional message from seller',
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `users`
+-- Table structure for table `lost_items`
 --
 
-INSERT INTO `users` (`user_id`, `user_name`, `stud_id`, `password`, `remember_token`, `profile_pic`, `course`, `year_level`, `age`, `gender`, `birthday`, `address`, `contact_number`, `email`, `created_at`) VALUES
-(1, 'Admin', 'Admin-00', '$2y$10$BlRgUJ/bKa.MkwNIGby/6OuBOy9JOTWfv8FEWgyYCuxVsacEMUvti', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-30 10:58:50');
+CREATE TABLE `lost_items` (
+  `id` int(11) NOT NULL,
+  `item_name` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `owner_name` varchar(255) DEFAULT NULL,
+  `program` varchar(255) DEFAULT NULL,
+  `contact` varchar(100) DEFAULT NULL,
+  `social` varchar(255) DEFAULT NULL,
+  `image` varchar(255) DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `type` enum('lost','found') NOT NULL DEFAULT 'lost',
+  `status` enum('open','claimed') NOT NULL DEFAULT 'open',
+  `claimed_claim_id` int(11) DEFAULT NULL,
+  `claimed_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lost_found_claims`
+--
+
+CREATE TABLE `lost_found_claims` (
+  `id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `item_type` enum('lost','found') NOT NULL,
+  `claimant_name` varchar(255) NOT NULL,
+  `claimant_program` varchar(255) DEFAULT NULL,
+  `claimant_contact` varchar(100) DEFAULT NULL,
+  `message` text DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `deleted_by_owner` tinyint(1) NOT NULL DEFAULT 0,
+  `deleted_by_claimant` tinyint(1) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Indexes for dumped tables
 --
 
---
--- Indexes for table `cart_items`
---
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`user_id`),
+  ADD UNIQUE KEY `user_name` (`user_name`),
+  ADD UNIQUE KEY `stud_id` (`stud_id`);
+
+ALTER TABLE `categories`
+  ADD PRIMARY KEY (`category_id`),
+  ADD UNIQUE KEY `category_name` (`category_name`);
+
+ALTER TABLE `products`
+  ADD PRIMARY KEY (`prod_id`),
+  ADD KEY `fk_products_user` (`user_id`),
+  ADD KEY `fk_products_category` (`category_id`);
+
 ALTER TABLE `cart_items`
   ADD PRIMARY KEY (`cart_item_id`),
   ADD KEY `fk_cart_user` (`user_id`),
   ADD KEY `fk_cart_product` (`product_id`);
 
---
--- Indexes for table `cart_item_rentals`
---
-ALTER TABLE `cart_item_rentals`
-  ADD PRIMARY KEY (`cart_item_id`);
+ALTER TABLE `orders`
+  ADD PRIMARY KEY (`order_id`),
+  ADD KEY `fk_orders_user` (`user_id`);
 
---
--- Indexes for table `cart_item_services`
---
-ALTER TABLE `cart_item_services`
-  ADD PRIMARY KEY (`cart_item_id`);
+ALTER TABLE `order_items`
+  ADD PRIMARY KEY (`order_item_id`),
+  ADD KEY `fk_order_items_order` (`order_id`),
+  ADD KEY `fk_order_items_product` (`product_id`);
 
---
--- Indexes for table `cart_item_service_files`
---
-ALTER TABLE `cart_item_service_files`
+ALTER TABLE `rental_details`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_ref` (`ref_type`, `ref_id`);
+
+ALTER TABLE `service_details`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_ref` (`ref_type`, `ref_id`);
+
+ALTER TABLE `service_files`
   ADD PRIMARY KEY (`service_file_id`),
-  ADD KEY `fk_cart_service_file` (`cart_item_id`);
+  ADD KEY `idx_ref` (`ref_type`, `ref_id`);
 
---
--- Indexes for table `categories`
---
-ALTER TABLE `categories`
-  ADD PRIMARY KEY (`category_id`),
-  ADD UNIQUE KEY `category_name` (`category_name`);
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_notif_user` (`user_id`),
+  ADD KEY `fk_notif_order` (`order_id`);
 
---
--- Indexes for table `lost_found_claims`
---
+ALTER TABLE `lost_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `user_id` (`user_id`);
+
 ALTER TABLE `lost_found_claims`
   ADD PRIMARY KEY (`id`),
   ADD KEY `item_id` (`item_id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- Indexes for table `lost_found_items`
---
-ALTER TABLE `lost_found_items`
-  ADD PRIMARY KEY (`item_id`),
-  ADD KEY `fk_lf_item_user` (`posted_by`);
-
---
--- Indexes for table `lost_found_messages`
---
-ALTER TABLE `lost_found_messages`
-  ADD PRIMARY KEY (`message_id`),
-  ADD KEY `fk_lf_message_item` (`item_id`),
-  ADD KEY `fk_lf_message_sender` (`sender_id`),
-  ADD KEY `fk_lf_message_receiver` (`receiver_id`);
-
---
--- Indexes for table `lost_items`
---
-ALTER TABLE `lost_items`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `user_id` (`user_id`);
-
---
--- Indexes for table `orders`
---
-ALTER TABLE `orders`
-  ADD PRIMARY KEY (`order_id`),
-  ADD KEY `fk_orders_user` (`user_id`);
-
---
--- Indexes for table `order_items`
---
-ALTER TABLE `order_items`
-  ADD PRIMARY KEY (`order_item_id`),
-  ADD KEY `fk_order_items_order` (`order_id`),
-  ADD KEY `fk_order_items_product` (`product_id`);
-
---
--- Indexes for table `order_item_rentals`
---
-ALTER TABLE `order_item_rentals`
-  ADD PRIMARY KEY (`order_item_id`);
-
---
--- Indexes for table `order_item_services`
---
-ALTER TABLE `order_item_services`
-  ADD PRIMARY KEY (`order_item_id`);
-
---
--- Indexes for table `order_item_service_files`
---
-ALTER TABLE `order_item_service_files`
-  ADD PRIMARY KEY (`service_file_id`),
-  ADD KEY `fk_order_service_file` (`order_item_id`);
-
---
--- Indexes for table `products`
---
-ALTER TABLE `products`
-  ADD PRIMARY KEY (`prod_id`),
-  ADD KEY `fk_products_user` (`user_id`),
-  ADD KEY `fk_products_category` (`category_id`);
-
---
--- Indexes for table `users`
---
-ALTER TABLE `users`
-  ADD PRIMARY KEY (`user_id`),
-  ADD UNIQUE KEY `user_name` (`user_name`),
-  ADD UNIQUE KEY `stud_id` (`stud_id`);
-
---
 -- AUTO_INCREMENT for dumped tables
 --
 
---
--- AUTO_INCREMENT for table `cart_items`
---
-ALTER TABLE `cart_items`
-  MODIFY `cart_item_id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `users`
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
---
--- AUTO_INCREMENT for table `cart_item_service_files`
---
-ALTER TABLE `cart_item_service_files`
-  MODIFY `service_file_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `categories`
---
 ALTER TABLE `categories`
   MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
---
--- AUTO_INCREMENT for table `lost_found_claims`
---
-ALTER TABLE `lost_found_claims`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `lost_found_items`
---
-ALTER TABLE `lost_found_items`
-  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `lost_found_messages`
---
-ALTER TABLE `lost_found_messages`
-  MODIFY `message_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `lost_items`
---
-ALTER TABLE `lost_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `orders`
---
-ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `order_items`
---
-ALTER TABLE `order_items`
-  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `order_item_service_files`
---
-ALTER TABLE `order_item_service_files`
-  MODIFY `service_file_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `products`
---
 ALTER TABLE `products`
   MODIFY `prod_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
---
--- AUTO_INCREMENT for table `users`
---
-ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `cart_items`
+  MODIFY `cart_item_id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `orders`
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `order_items`
+  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `rental_details`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `service_details`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `service_files`
+  MODIFY `service_file_id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `lost_items`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `lost_found_claims`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
 --
 
---
--- Constraints for table `cart_items`
---
+ALTER TABLE `products`
+  ADD CONSTRAINT `fk_products_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`),
+  ADD CONSTRAINT `fk_products_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
 ALTER TABLE `cart_items`
   ADD CONSTRAINT `fk_cart_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`prod_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_cart_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
---
--- Constraints for table `cart_item_rentals`
---
-ALTER TABLE `cart_item_rentals`
-  ADD CONSTRAINT `fk_cart_rental_item` FOREIGN KEY (`cart_item_id`) REFERENCES `cart_items` (`cart_item_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `cart_item_services`
---
-ALTER TABLE `cart_item_services`
-  ADD CONSTRAINT `fk_cart_service_item` FOREIGN KEY (`cart_item_id`) REFERENCES `cart_items` (`cart_item_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `cart_item_service_files`
---
-ALTER TABLE `cart_item_service_files`
-  ADD CONSTRAINT `fk_cart_service_file` FOREIGN KEY (`cart_item_id`) REFERENCES `cart_items` (`cart_item_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `lost_found_items`
---
-ALTER TABLE `lost_found_items`
-  ADD CONSTRAINT `fk_lf_item_user` FOREIGN KEY (`posted_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `lost_found_messages`
---
-ALTER TABLE `lost_found_messages`
-  ADD CONSTRAINT `fk_lf_message_item` FOREIGN KEY (`item_id`) REFERENCES `lost_found_items` (`item_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_lf_message_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_lf_message_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `orders`
---
 ALTER TABLE `orders`
   ADD CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
---
--- Constraints for table `order_items`
---
 ALTER TABLE `order_items`
   ADD CONSTRAINT `fk_order_items_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_order_items_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`prod_id`);
 
---
--- Constraints for table `order_item_rentals`
---
-ALTER TABLE `order_item_rentals`
-  ADD CONSTRAINT `fk_order_rental_item` FOREIGN KEY (`order_item_id`) REFERENCES `order_items` (`order_item_id`) ON DELETE CASCADE;
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_notif_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE;
 
---
--- Constraints for table `order_item_services`
---
-ALTER TABLE `order_item_services`
-  ADD CONSTRAINT `fk_order_service_item` FOREIGN KEY (`order_item_id`) REFERENCES `order_items` (`order_item_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `order_item_service_files`
---
-ALTER TABLE `order_item_service_files`
-  ADD CONSTRAINT `fk_order_service_file` FOREIGN KEY (`order_item_id`) REFERENCES `order_items` (`order_item_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `products`
---
-ALTER TABLE `products`
-  ADD CONSTRAINT `fk_products_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`),
-  ADD CONSTRAINT `fk_products_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
