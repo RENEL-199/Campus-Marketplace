@@ -92,9 +92,9 @@ class OrderRepository {
 
     private function copyRentalDetails(int $orderItemId, array $item): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO order_item_rentals
-            (order_item_id, date_from, date_to, rental_days, borrower_name, student_no, age, gender)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO rental_details
+            (ref_type, ref_id, date_from, date_to, rental_days, borrower_name, student_no, age, gender)
+            VALUES ('order', ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $orderItemId,
@@ -110,8 +110,8 @@ class OrderRepository {
 
     private function copyServiceDetails(int $orderItemId, array $item): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO order_item_services (order_item_id, full_name, student_no, print_type, file_count)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO service_details (ref_type, ref_id, full_name, student_no, print_type, file_count)
+            VALUES ('order', ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $orderItemId,
@@ -123,11 +123,11 @@ class OrderRepository {
     }
 
     private function copyServiceFiles(int $orderItemId, int $cartItemId): void {
-        $files = $this->pdo->prepare("SELECT original_filename, stored_filename, file_path FROM cart_item_service_files WHERE cart_item_id = ?");
+        $files = $this->pdo->prepare("SELECT original_filename, stored_filename, file_path FROM service_files WHERE ref_type = 'cart' AND ref_id = ?");
         $files->execute([$cartItemId]);
         $insert = $this->pdo->prepare(" 
-            INSERT INTO order_item_service_files (order_item_id, original_filename, stored_filename, file_path)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO service_files (ref_type, ref_id, original_filename, stored_filename, file_path)
+            VALUES ('order', ?, ?, ?, ?)
         ");
         foreach ($files->fetchAll() as $file) {
             $insert->execute([$orderItemId, $file['original_filename'], $file['stored_filename'], $file['file_path']]);
