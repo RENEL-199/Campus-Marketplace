@@ -129,6 +129,17 @@ $sellerGcashNumbers = array_values(array_unique($sellerGcashNumbers));
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
 
+        .checkout-error {
+            width: min(1160px, calc(100% - 24px));
+            margin: 18px auto 0;
+            background: #fff4f2;
+            border: 1px solid #e7b4aa;
+            color: #8a1f12;
+            border-radius: 14px;
+            padding: 12px 14px;
+            font-size: 14px;
+        }
+
         /* TOP CONTENT */
 
         .checkout-content {
@@ -374,6 +385,12 @@ $sellerGcashNumbers = array_values(array_unique($sellerGcashNumbers));
 
 <body>
 
+    <?php if (!empty($_GET['error']) || !empty($_GET['cart_error']) || !empty($_GET['select_error'])): ?>
+        <div class="checkout-error">
+            <?= htmlspecialchars((string)($_GET['error'] ?? $_GET['cart_error'] ?? 'Please review your checkout details and try again.'), ENT_QUOTES, 'UTF-8') ?>
+        </div>
+    <?php endif; ?>
+
     <nav>
         <h1>IskoHub</h1>
 
@@ -383,7 +400,7 @@ $sellerGcashNumbers = array_values(array_unique($sellerGcashNumbers));
             <a href="orders.php"><i class="fa-solid fa-box"></i> Order History</a>
             <a href="seller_dashboard.php"><i class="fa-solid fa-dollar-sign"></i> Sell</a>
             <a href="account.php"><i class="fa-solid fa-user"></i></a>
-             <a href="logout.php" class="logout-btn">Logout</a>
+            <a href="logout.php" class="logout-btn">Logout</a>
         </div>
     </nav>
 

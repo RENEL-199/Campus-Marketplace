@@ -67,6 +67,7 @@ class CartRepository {
             SELECT 
                 ci.cart_item_id,
                 ci.product_id,
+                p.user_id,
                 ci.quantity,
                 p.prod_name,
                 p.prod_price,
@@ -117,6 +118,7 @@ class CartRepository {
             SELECT 
                 ci.cart_item_id,
                 ci.product_id,
+                p.user_id,
                 ci.quantity,
                 p.prod_name,
                 p.prod_price,

@@ -156,7 +156,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && in_array
         }
     } else {
         $reason = trim($_POST['reason'] ?? '');
-        $pdo->prepare("UPDATE rental_details SET payment_status = 'Payment Under Review', payment_rejection_reason = ?, reservation_status = 'Payment Under Review' WHERE ref_type = 'order' AND ref_id = ?")->execute([$reason !== '' ? $reason : 'Payment rejected by seller.', $orderItemId]);
+        $pdo->prepare("UPDATE rental_details SET payment_status = 'Rejected', payment_rejection_reason = ?, reservation_status = 'Rejected' WHERE ref_type = 'order' AND ref_id = ?")->execute([$reason !== '' ? $reason : 'Payment rejected by seller.', $orderItemId]);
 
         // Fetch buyer, seller, and product details
         $buyerStmt = $pdo->prepare("SELECT o.user_id, o.fullname, o.phone, oi.product_name_snapshot AS prod_name FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE oi.order_item_id = ? LIMIT 1");
@@ -387,7 +387,7 @@ $pendingRentalPayments = $pdo->prepare("
     FROM order_items oi
     JOIN orders o ON o.order_id = oi.order_id
     JOIN rental_details rd ON rd.ref_type = 'order' AND rd.ref_id = oi.order_item_id
-    WHERE oi.seller_id = ? AND rd.payment_status IN ('Payment Proof Submitted','Payment Under Review')
+    WHERE oi.seller_id = ? AND rd.payment_status IN ('Pending Payment','Payment Proof Submitted','Payment Under Review') AND COALESCE(rd.payment_status, '') <> 'Rejected'
     ORDER BY o.created_at DESC
 ");
 $pendingRentalPayments->execute([$user_id]);

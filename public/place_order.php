@@ -27,7 +27,7 @@ $selectedItems = $_POST['selected_items'] ?? $_SESSION['checkout_selected_items'
 $rentalTermsAccepted = !empty($_POST['rental_terms_accepted']);
 
 if ($fullname === '' || $address === '' || $phone === '') {
-    header('Location: checkout.php');
+    header('Location: checkout.php?error=' . urlencode('Please fill in the receiving person, address, and contact number.'));
     exit;
 }
 
@@ -79,7 +79,8 @@ try {
     header('Location: receipt.php?id=' . $orderId);
     exit;
 } catch (Throwable $e) {
-    die('Order failed: ' . htmlspecialchars($e->getMessage()));
+    header('Location: checkout.php?error=' . urlencode($e->getMessage()));
+    exit;
 }
 
 function ensureColumn(PDO $pdo, string $table, string $column, string $definition): void {
