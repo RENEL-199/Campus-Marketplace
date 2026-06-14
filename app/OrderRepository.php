@@ -53,8 +53,8 @@ class OrderRepository {
             }
 
             $itemStmt = $this->pdo->prepare(" 
-                INSERT INTO order_items (order_id, product_id, item_type, quantity, unit_price, subtotal)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO order_items (order_id, product_id, seller_id, product_name_snapshot, product_image_snapshot, rate_type_snapshot, item_type, quantity, unit_price, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stockUpdate = $this->pdo->prepare("UPDATE products SET prod_stock = prod_stock - ? WHERE prod_id = ?");
 
@@ -67,6 +67,10 @@ class OrderRepository {
                 $itemStmt->execute([
                     $orderId,
                     (int)$item['product_id'],
+                    (int)($item['user_id'] ?? 0),
+                    (string)($item['prod_name'] ?? ''),
+                    $item['prod_image'] ?? null,
+                    $item['prod_rate_type'] ?? null,
                     $categoryType,
                     (int)$item['quantity'],
                     (float)$item['prod_price'],
@@ -76,8 +80,7 @@ class OrderRepository {
 
                 if ($categoryType === 'rental') {
                     $paymentStatus = $paymentProofPath ? 'Payment Proof Submitted' : 'Pending Payment';
-                    $this->copyRentalDetails($orderItemId, $item, $paymentProofPath, $rentalTermsAccepted);
-                    $this->recordRentalHistory($orderItemId, 'Pending Payment', $paymentStatus, $userId, 'Rental order submitted.');
+                    $this->copyRentalDetails($orderItemId, $item, $paymentProofPath, $rentalTermsAccepted, $paymentStatus);
                     $this->recordRentalTermsAcceptance($orderItemId, $userId, $item['rental_terms'] ?? null);
                     $stockUpdate->execute([(int)$item['quantity'], (int)$item['product_id']]);
                 } elseif ($categoryType === 'service') {
@@ -97,22 +100,17 @@ class OrderRepository {
         }
     }
 
-    private function recordRentalHistory(int $orderItemId, string $fromStatus, string $toStatus, int $userId, string $note = ''): void {
-        $stmt = $this->pdo->prepare("INSERT INTO rental_payment_history (order_item_id, status_from, status_to, changed_by, note) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$orderItemId, $fromStatus, $toStatus, $userId, $note]);
-    }
-
     private function recordRentalTermsAcceptance(int $orderItemId, int $userId, ?string $termsText): void {
-        $stmt = $this->pdo->prepare("INSERT INTO rental_terms_acceptances (order_item_id, accepted_at, terms_text, user_id) VALUES (?, NOW(), ?, ?)");
-        $stmt->execute([$orderItemId, $termsText, $userId]);
+        $stmt = $this->pdo->prepare("INSERT INTO terms_acceptances (acceptance_type, subject_id, user_id, accepted_at, terms_text) VALUES ('rental', ?, ?, NOW(), ?)");
+        $stmt->execute([$orderItemId, $userId, $termsText]);
     }
 
-    private function copyRentalDetails(int $orderItemId, array $item, ?string $paymentProofPath = null, bool $rentalTermsAccepted = false): void {
-        $paymentStatus = $paymentProofPath ? 'Payment Proof Submitted' : 'Pending Payment';
+    private function copyRentalDetails(int $orderItemId, array $item, ?string $paymentProofPath = null, bool $rentalTermsAccepted = false, ?string $paymentStatus = null): void {
+        $paymentStatus = $paymentStatus ?? ($paymentProofPath ? 'Payment Proof Submitted' : 'Pending Payment');
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO order_item_rentals
-            (order_item_id, date_from, date_to, rental_days, borrower_name, student_no, age, gender, payment_status, reservation_status, payment_proof_path, rental_terms_accepted)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO rental_details
+            (ref_type, ref_id, date_from, date_to, rental_days, borrower_name, student_no, age, gender, payment_status, payment_proof_path, payment_verified_at, payment_verified_by, payment_rejection_reason, reservation_status, rental_terms_accepted)
+            VALUES ('order', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)
         ");
         $stmt->execute([
             $orderItemId,
@@ -124,16 +122,16 @@ class OrderRepository {
             $item['age'] ?? null,
             $item['gender'] ?? null,
             $paymentStatus,
-            $paymentStatus,
             $paymentProofPath,
+            $paymentStatus,
             $rentalTermsAccepted ? 1 : 0
         ]);
     }
 
     private function copyServiceDetails(int $orderItemId, array $item): void {
         $stmt = $this->pdo->prepare(" 
-            INSERT INTO order_item_services (order_item_id, full_name, student_no, print_type, file_count)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO service_details (ref_type, ref_id, full_name, student_no, print_type, file_count)
+            VALUES ('order', ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $orderItemId,
@@ -145,11 +143,11 @@ class OrderRepository {
     }
 
     private function copyServiceFiles(int $orderItemId, int $cartItemId): void {
-        $files = $this->pdo->prepare("SELECT original_filename, stored_filename, file_path FROM cart_item_service_files WHERE cart_item_id = ?");
+        $files = $this->pdo->prepare("SELECT original_filename, stored_filename, file_path FROM service_files WHERE ref_type = 'cart' AND ref_id = ?");
         $files->execute([$cartItemId]);
         $insert = $this->pdo->prepare(" 
-            INSERT INTO order_item_service_files (order_item_id, original_filename, stored_filename, file_path)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO service_files (ref_type, ref_id, original_filename, stored_filename, file_path)
+            VALUES ('order', ?, ?, ?, ?)
         ");
         foreach ($files->fetchAll() as $file) {
             $insert->execute([$orderItemId, $file['original_filename'], $file['stored_filename'], $file['file_path']]);

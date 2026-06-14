@@ -28,19 +28,16 @@ $csrf = csrf_token();
 
 ensureColumn($pdo, 'products', 'rental_terms', "rental_terms TEXT DEFAULT NULL");
 ensureColumn($pdo, 'products', 'seller_terms_accepted_at', "seller_terms_accepted_at DATETIME DEFAULT NULL");
-ensureColumn($pdo, 'order_item_rentals', 'payment_status', "payment_status VARCHAR(60) NOT NULL DEFAULT 'Pending Payment'");
-ensureColumn($pdo, 'order_item_rentals', 'payment_proof_path', "payment_proof_path VARCHAR(255) DEFAULT NULL");
-ensureColumn($pdo, 'order_item_rentals', 'payment_verified_at', "payment_verified_at DATETIME DEFAULT NULL");
-ensureColumn($pdo, 'order_item_rentals', 'payment_verified_by', "payment_verified_by INT DEFAULT NULL");
-ensureColumn($pdo, 'order_item_rentals', 'payment_rejection_reason', "payment_rejection_reason TEXT DEFAULT NULL");
-ensureColumn($pdo, 'order_item_rentals', 'reservation_status', "reservation_status VARCHAR(60) NOT NULL DEFAULT 'Pending Payment'");
-ensureColumn($pdo, 'order_item_rentals', 'rental_terms_accepted', "rental_terms_accepted TINYINT(1) NOT NULL DEFAULT 0");
+ensureColumn($pdo, 'rental_details', 'payment_status', "payment_status VARCHAR(60) DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'payment_proof_path', "payment_proof_path VARCHAR(255) DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'payment_verified_at', "payment_verified_at DATETIME DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'payment_verified_by', "payment_verified_by INT DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'payment_rejection_reason', "payment_rejection_reason TEXT DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'reservation_status', "reservation_status VARCHAR(60) DEFAULT NULL");
+ensureColumn($pdo, 'rental_details', 'rental_terms_accepted', "rental_terms_accepted TINYINT(1) NOT NULL DEFAULT 0");
 
-ensureTable($pdo, "CREATE TABLE IF NOT EXISTS seller_terms_acceptances (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, user_agent TEXT DEFAULT NULL, ip_address VARCHAR(100) DEFAULT NULL)");
-ensureIndex($pdo, 'seller_terms_acceptances', 'uniq_seller_terms_acceptances_user_id', 'ADD UNIQUE INDEX uniq_seller_terms_acceptances_user_id (user_id)');
-ensureTable($pdo, "CREATE TABLE IF NOT EXISTS rental_terms_acceptances (id INT AUTO_INCREMENT PRIMARY KEY, order_item_id INT NOT NULL, accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, terms_text TEXT DEFAULT NULL, user_id INT DEFAULT NULL)");
+ensureTable($pdo, "CREATE TABLE IF NOT EXISTS terms_acceptances (id INT AUTO_INCREMENT PRIMARY KEY, acceptance_type ENUM('seller','rental') NOT NULL, subject_id INT NOT NULL, user_id INT DEFAULT NULL, accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, terms_text TEXT DEFAULT NULL, user_agent TEXT DEFAULT NULL, ip_address VARCHAR(100) DEFAULT NULL, UNIQUE KEY uniq_terms_acceptance (acceptance_type, subject_id), INDEX idx_terms_acceptance_user (user_id))");
 ensureTable($pdo, "CREATE TABLE IF NOT EXISTS notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(60) NOT NULL DEFAULT 'general', title VARCHAR(150) NOT NULL, message TEXT NOT NULL, related_order_item_id INT DEFAULT NULL, is_read TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_notifications_user (user_id), INDEX idx_notifications_unread (user_id, is_read))");
-ensureTable($pdo, "CREATE TABLE IF NOT EXISTS rental_payment_history (id INT AUTO_INCREMENT PRIMARY KEY, order_item_id INT NOT NULL, status_from VARCHAR(60) NOT NULL, status_to VARCHAR(60) NOT NULL, changed_by INT DEFAULT NULL, changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, note TEXT DEFAULT NULL)");
 
 function ensureColumn(PDO $pdo, string $table, string $column, string $definition): void {
     $stmt = $pdo->query("SHOW COLUMNS FROM `" . $table . "` LIKE '" . $column . "'");
@@ -52,19 +49,6 @@ function ensureColumn(PDO $pdo, string $table, string $column, string $definitio
 
 function ensureTable(PDO $pdo, string $sql): void {
     $pdo->exec($sql);
-}
-
-function ensureIndex(PDO $pdo, string $table, string $indexName, string $definition): void {
-    $stmt = $pdo->query("SHOW INDEX FROM `" . $table . "` WHERE Key_name = '" . $indexName . "'");
-    if ($stmt->fetch()) {
-        return;
-    }
-
-    if ($table === 'seller_terms_acceptances' && $indexName === 'uniq_seller_terms_acceptances_user_id') {
-        $pdo->exec("DELETE s1 FROM seller_terms_acceptances s1 INNER JOIN seller_terms_acceptances s2 ON s1.user_id = s2.user_id AND s1.id > s2.id");
-    }
-
-    $pdo->exec("ALTER TABLE `" . $table . "` " . $definition);
 }
 
 function uploadProductImage(array $file, string $fallback = 'uploads/default.png'): string {
@@ -133,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && in_array
         exit;
     }
 
-    $current = $pdo->prepare("SELECT payment_status, reservation_status FROM order_item_rentals orr JOIN order_items oi ON oi.order_item_id = orr.order_item_id JOIN products p ON p.prod_id = oi.product_id WHERE orr.order_item_id = ? AND p.user_id = ? LIMIT 1");
+    $current = $pdo->prepare("SELECT rd.payment_status, rd.reservation_status FROM rental_details rd JOIN order_items oi ON oi.order_item_id = rd.ref_id WHERE rd.ref_type = 'order' AND rd.ref_id = ? AND oi.seller_id = ? LIMIT 1");
     $current->execute([$orderItemId, $user_id]);
     $currentStatus = $current->fetch(PDO::FETCH_ASSOC);
     if (!$currentStatus) {
@@ -142,13 +126,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && in_array
     }
 
     if ($_POST['action'] === 'verify_payment') {
-        $pdo->prepare("UPDATE order_item_rentals SET payment_status = 'Reserved', reservation_status = 'Reserved', payment_verified_at = NOW(), payment_verified_by = ?, payment_rejection_reason = NULL WHERE order_item_id = ?")->execute([$user_id, $orderItemId]);
-        $pdo->prepare("INSERT INTO rental_payment_history (order_item_id, status_from, status_to, changed_by, note) VALUES (?, ?, 'Reserved', ?, 'Payment approved by seller')")->execute([$orderItemId, $currentStatus['payment_status'], $user_id]);
+        $pdo->prepare("UPDATE rental_details SET payment_status = 'Reserved', reservation_status = 'Reserved', payment_verified_at = NOW(), payment_verified_by = ?, payment_rejection_reason = NULL WHERE ref_type = 'order' AND ref_id = ?")->execute([$user_id, $orderItemId]);
         $pdo->prepare("UPDATE orders SET status = 'confirmed' WHERE order_id = (SELECT order_id FROM order_items WHERE order_item_id = ?)")->execute([$orderItemId]);
+
+        // Fetch buyer, seller, and product details
+        $buyerStmt = $pdo->prepare("SELECT o.user_id, o.fullname, o.phone, oi.product_name_snapshot AS prod_name FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE oi.order_item_id = ? LIMIT 1");
+        $buyerStmt->execute([$orderItemId]);
+        $buyer = $buyerStmt->fetch(PDO::FETCH_ASSOC);
+        $buyerId = $buyer['user_id'] ?? null;
+        $productName = $buyer['prod_name'] ?? 'Selected rental item';
+
+        $sellerStmt = $pdo->prepare("SELECT user_name, contact_number, course, year_level FROM users WHERE user_id = ? LIMIT 1");
+        $sellerStmt->execute([$user_id]);
+        $seller = $sellerStmt->fetch(PDO::FETCH_ASSOC);
+        $sellerName = $seller['user_name'] ?? 'Seller';
+        $sellerContact = $seller['contact_number'] ?? '';
+        $sellerProgram = trim((($seller['course'] ?? '') . ' ' . ($seller['year_level'] ?? '')));
+
+        // Notification for buyer (received)
+        if ($buyerId) {
+            $title = 'Rental approved: ' . $productName;
+            $message = 'Your payment for "' . $productName . '" has been approved by ' . $sellerName . '. Contact: ' . ($sellerContact ?: 'Not provided') . '. Program/Year: ' . ($sellerProgram ?: 'Not provided') . '.';
+            $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, related_order_item_id) VALUES (?, 'rental', ?, ?, ?)")->execute([$buyerId, $title, $message, $orderItemId]);
+
+            // Notification for seller (sent)
+            $titleS = 'Rental approved: ' . $productName;
+            $messageS = 'You approved "' . $productName . '" for buyer ' . ($buyer['fullname'] ?? 'Buyer') . ' (phone: ' . ($buyer['phone'] ?? 'Not provided') . ').';
+            $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, related_order_item_id) VALUES (?, 'rental_sent', ?, ?, ?)")->execute([$user_id, $titleS, $messageS, $orderItemId]);
+        }
     } else {
         $reason = trim($_POST['reason'] ?? '');
-        $pdo->prepare("UPDATE order_item_rentals SET payment_status = 'Payment Under Review', payment_rejection_reason = ?, reservation_status = 'Payment Under Review' WHERE order_item_id = ?")->execute([$reason !== '' ? $reason : 'Payment rejected by seller.', $orderItemId]);
-        $pdo->prepare("INSERT INTO rental_payment_history (order_item_id, status_from, status_to, changed_by, note) VALUES (?, ?, 'Payment Under Review', ?, ?)")->execute([$orderItemId, $currentStatus['payment_status'], $user_id, $reason]);
+        $pdo->prepare("UPDATE rental_details SET payment_status = 'Payment Under Review', payment_rejection_reason = ?, reservation_status = 'Payment Under Review' WHERE ref_type = 'order' AND ref_id = ?")->execute([$reason !== '' ? $reason : 'Payment rejected by seller.', $orderItemId]);
+
+        // Fetch buyer, seller, and product details
+        $buyerStmt = $pdo->prepare("SELECT o.user_id, o.fullname, o.phone, oi.product_name_snapshot AS prod_name FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE oi.order_item_id = ? LIMIT 1");
+        $buyerStmt->execute([$orderItemId]);
+        $buyer = $buyerStmt->fetch(PDO::FETCH_ASSOC);
+        $buyerId = $buyer['user_id'] ?? null;
+        $productName = $buyer['prod_name'] ?? 'Selected rental item';
+
+        $sellerStmt = $pdo->prepare("SELECT user_name, contact_number, course, year_level FROM users WHERE user_id = ? LIMIT 1");
+        $sellerStmt->execute([$user_id]);
+        $seller = $sellerStmt->fetch(PDO::FETCH_ASSOC);
+        $sellerName = $seller['user_name'] ?? 'Seller';
+        $sellerContact = $seller['contact_number'] ?? '';
+        $sellerProgram = trim((($seller['course'] ?? '') . ' ' . ($seller['year_level'] ?? '')));
+
+        if ($buyerId) {
+            $title = 'Rental rejected: ' . $productName;
+            $message = 'Your payment for "' . $productName . '" was rejected by ' . $sellerName . '. Reason: ' . ($reason !== '' ? $reason : 'No reason provided.') . '. Contact: ' . ($sellerContact ?: 'Not provided') . '.';
+            $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, related_order_item_id) VALUES (?, 'rental', ?, ?, ?)")->execute([$buyerId, $title, $message, $orderItemId]);
+
+            // Notification for seller (sent)
+            $titleS = 'Rental rejected: ' . $productName;
+            $messageS = 'You rejected "' . $productName . '" for buyer ' . ($buyer['fullname'] ?? 'Buyer') . '. Reason: ' . ($reason !== '' ? $reason : 'No reason provided') . '.';
+            $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, related_order_item_id) VALUES (?, 'rental_sent', ?, ?, ?)")->execute([$user_id, $titleS, $messageS, $orderItemId]);
+        }
     }
 
     header("Location: seller_dashboard.php");
@@ -161,7 +194,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
         exit('Invalid security token.');
     }
 
-    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at = NOW(), user_agent = VALUES(user_agent), ip_address = VALUES(ip_address)")->execute([
+    $pdo->prepare("INSERT INTO terms_acceptances (acceptance_type, subject_id, user_id, accepted_at, user_agent, ip_address) VALUES ('seller', ?, ?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at = NOW(), user_agent = VALUES(user_agent), ip_address = VALUES(ip_address)")->execute([
+        $user_id,
         $user_id,
         $_SERVER['HTTP_USER_AGENT'] ?? null,
         $_SERVER['REMOTE_ADDR'] ?? null,
@@ -183,7 +217,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
         echo "<script>alert('You must accept the platform Terms and Conditions before updating listings.'); window.location.href='seller_dashboard.php';</script>";
         exit;
     }
-    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at)")->execute([$user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
+    $pdo->prepare("INSERT INTO terms_acceptances (acceptance_type, subject_id, user_id, accepted_at, user_agent, ip_address) VALUES ('seller', ?, ?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at), user_agent=VALUES(user_agent), ip_address=VALUES(ip_address)")->execute([$user_id, $user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
 
     if (empty($_POST["selected_product_id"])) {
         echo "<script>alert('Select product first to update it.'); window.location.href='seller_dashboard.php';</script>";
@@ -266,7 +300,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"]) && $_POST["
         echo "<script>alert('You must accept the platform Terms and Conditions before creating a listing.'); window.location.href='seller_dashboard.php';</script>";
         exit;
     }
-    $pdo->prepare("INSERT INTO seller_terms_acceptances (user_id, accepted_at, user_agent, ip_address) VALUES (?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at)")->execute([$user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
+    $pdo->prepare("INSERT INTO terms_acceptances (acceptance_type, subject_id, user_id, accepted_at, user_agent, ip_address) VALUES ('seller', ?, ?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE accepted_at=VALUES(accepted_at), user_agent=VALUES(user_agent), ip_address=VALUES(ip_address)")->execute([$user_id, $user_id, $_SERVER['HTTP_USER_AGENT'] ?? null, $_SERVER['REMOTE_ADDR'] ?? null]);
     $name = trim($_POST["name"]);
     $desc = trim($_POST["description"]);
     $price = trim($_POST["price"]);
@@ -332,7 +366,7 @@ $stmt = $pdo->prepare("SELECT *, rate_type AS prod_rate_type, location AS prod_l
 $stmt->execute([$user_id]);
 $products = $stmt->fetchAll(PDO::FETCH_OBJ);
 
-$sellerAcceptedAt = $pdo->prepare("SELECT accepted_at FROM seller_terms_acceptances WHERE user_id = ? LIMIT 1");
+$sellerAcceptedAt = $pdo->prepare("SELECT accepted_at FROM terms_acceptances WHERE acceptance_type = 'seller' AND subject_id = ? LIMIT 1");
 $sellerAcceptedAt->execute([$user_id]);
 $sellerAcceptedAt = $sellerAcceptedAt->fetchColumn();
 
@@ -348,13 +382,12 @@ foreach ($products as $p) {
     else $out++;
 }
 
-$pendingRentalPayments = $pdo->prepare("
-    SELECT oi.order_item_id, oi.order_id, p.prod_name, o.fullname, o.phone, orr.payment_proof_path, orr.payment_status, orr.payment_rejection_reason
+$pendingRentalPayments = $pdo->prepare(" 
+    SELECT oi.order_item_id, oi.order_id, oi.product_name_snapshot AS prod_name, o.fullname, o.phone, rd.payment_proof_path, rd.payment_status, rd.payment_rejection_reason
     FROM order_items oi
     JOIN orders o ON o.order_id = oi.order_id
-    JOIN order_item_rentals orr ON orr.order_item_id = oi.order_item_id
-    JOIN products p ON p.prod_id = oi.product_id
-    WHERE p.user_id = ? AND orr.payment_status IN ('Payment Proof Submitted','Payment Under Review')
+    JOIN rental_details rd ON rd.ref_type = 'order' AND rd.ref_id = oi.order_item_id
+    WHERE oi.seller_id = ? AND rd.payment_status IN ('Payment Proof Submitted','Payment Under Review')
     ORDER BY o.created_at DESC
 ");
 $pendingRentalPayments->execute([$user_id]);

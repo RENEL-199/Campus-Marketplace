@@ -88,7 +88,7 @@ class ProductRepository {
     }
 
     public function delete(int $prod_id, int $user_id): void {
-        $stmt = $this->pdo->prepare("UPDATE products SET status='deleted' WHERE prod_id=? AND user_id=?");
+        $stmt = $this->pdo->prepare("DELETE FROM products WHERE prod_id = ? AND user_id = ?");
         $stmt->execute([$prod_id, $user_id]);
     }
 

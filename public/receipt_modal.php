@@ -19,15 +19,14 @@ if (!$order) {
 
 $stmt = $pdo->prepare(" 
     SELECT 
-        oi.*, p.prod_name, p.rate_type,
-        orr.rental_days AS rental_duration,
-        ois.file_count,
-        GROUP_CONCAT(oisf.original_filename ORDER BY oisf.service_file_id SEPARATOR '||') AS service_files_text
+        oi.*,
+        rd.rental_days AS rental_duration,
+        sd.file_count,
+        GROUP_CONCAT(sf.original_filename ORDER BY sf.service_file_id SEPARATOR '||') AS service_files_text
     FROM order_items oi
-    JOIN products p ON p.prod_id = oi.product_id
-    LEFT JOIN order_item_rentals orr ON orr.order_item_id = oi.order_item_id
-    LEFT JOIN order_item_services ois ON ois.order_item_id = oi.order_item_id
-    LEFT JOIN order_item_service_files oisf ON oisf.order_item_id = oi.order_item_id
+    LEFT JOIN rental_details rd ON rd.ref_type = 'order' AND rd.ref_id = oi.order_item_id
+    LEFT JOIN service_details sd ON sd.ref_type = 'order' AND sd.ref_id = oi.order_item_id
+    LEFT JOIN service_files sf ON sf.ref_type = 'order' AND sf.ref_id = oi.order_item_id
     WHERE oi.order_id = ?
     GROUP BY oi.order_item_id
 ");
@@ -54,7 +53,7 @@ function decodeServiceFiles(?string $text): array {
         ? (float)$item['subtotal']
         : ((float)$item['unit_price'] * (int)$item['quantity']);
 
-    $rateType = $item['rate_type'] ?? '';
+    $rateType = $item['rate_type_snapshot'] ?? '';
     $duration = isset($item['rental_duration']) ? (int)$item['rental_duration'] : 1;
     $durationText = '';
     $serviceFiles = decodeServiceFiles($item['service_files_text'] ?? null);
@@ -68,7 +67,7 @@ function decodeServiceFiles(?string $text): array {
     }
 ?>
 <div class="item">
-    <span><?= htmlspecialchars($item['prod_name']) ?> x<?= (int)$item['quantity'] ?><?= htmlspecialchars($durationText . $serviceText) ?></span>
+    <span><?= htmlspecialchars($item['product_name_snapshot'] ?? '') ?> x<?= (int)$item['quantity'] ?><?= htmlspecialchars($durationText . $serviceText) ?></span>
     <span>₱<?= number_format($itemSubtotal, 2) ?></span>
 </div>
 <?php endforeach; ?>

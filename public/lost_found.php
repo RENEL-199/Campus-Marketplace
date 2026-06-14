@@ -63,8 +63,6 @@ $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_lf_claim') {
     $item_id = (int)($_POST['item_id'] ?? 0);
-    $item_type = strtolower(trim($_POST['item_type'] ?? 'lost'));
-    $item_type = in_array($item_type, ['lost', 'found'], true) ? $item_type : 'lost';
     $claimant_name = trim($_POST['claimant_name'] ?? '');
     $claimant_program = trim($_POST['claimant_program'] ?? '');
     $claimant_contact = trim($_POST['claimant_contact'] ?? '');
@@ -73,16 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     if ($item_id <= 0 || $claimant_name === '' || $claimant_contact === '') {
         $error = 'Please complete your name and contact information.';
     } else {
-        $checkItem = $pdo->prepare("SELECT id FROM lost_items WHERE id = ? LIMIT 1");
+        $checkItem = $pdo->prepare("SELECT type FROM lost_items WHERE id = ? LIMIT 1");
         $checkItem->execute([$item_id]);
 
-        if (!$checkItem->fetchColumn()) {
+        $resolvedItemType = $checkItem->fetchColumn();
+        if ($resolvedItemType === false) {
             $error = 'Item not found.';
         } else {
-            $stmt = $pdo->prepare("\n                INSERT INTO lost_found_claims\n                    (item_id, item_type, claimant_name, claimant_program, claimant_contact, message, user_id)\n                VALUES\n                    (?, ?, ?, ?, ?, ?, ?)\n            ");
+            $stmt = $pdo->prepare("\n                INSERT INTO lost_found_claims\n                    (item_id, claimant_name, claimant_program, claimant_contact, message, user_id)\n                VALUES\n                    (?, ?, ?, ?, ?, ?)\n            ");
             $stmt->execute([
                 $item_id,
-                $item_type,
                 $claimant_name,
                 $claimant_program ?: null,
                 $claimant_contact,
@@ -90,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
                 $user_id
             ]);
 
-            header('Location: lost_found.php?claim_sent=1&claim_type=' . urlencode($item_type));
+            header('Location: lost_found.php?claim_sent=1&claim_type=' . urlencode((string)$resolvedItemType));
             exit;
         }
     }

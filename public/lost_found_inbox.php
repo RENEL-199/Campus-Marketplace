@@ -13,7 +13,6 @@ function e($value): string { return htmlspecialchars((string)$value, ENT_QUOTES,
 $pdo->exec("CREATE TABLE IF NOT EXISTS lost_found_claims (
     id INT(11) NOT NULL AUTO_INCREMENT,
     item_id INT(11) NOT NULL,
-    item_type ENUM('lost','found') NOT NULL,
     claimant_name VARCHAR(255) NOT NULL,
     claimant_program VARCHAR(255) DEFAULT NULL,
     claimant_contact VARCHAR(100) DEFAULT NULL,
@@ -39,6 +38,19 @@ ensureColumn($pdo, 'lost_items', 'claimed_at', "claimed_at DATETIME DEFAULT NULL
 ensureColumn($pdo, 'lost_found_claims', 'deleted_by_owner', "deleted_by_owner TINYINT(1) NOT NULL DEFAULT 0");
 ensureColumn($pdo, 'lost_found_claims', 'deleted_by_claimant', "deleted_by_claimant TINYINT(1) NOT NULL DEFAULT 0");
 
+// Ensure notifications table exists so other modules (seller dashboard) can post messages here
+$pdo->exec("CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type VARCHAR(60) NOT NULL DEFAULT 'general',
+    title VARCHAR(150) NOT NULL,
+    message TEXT NOT NULL,
+    related_order_item_id INT DEFAULT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notifications_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_claimed') {
     $claim_id = (int)($_POST['claim_id'] ?? 0);
 
@@ -58,6 +70,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     $claim_id = (int)($_POST['claim_id'] ?? 0);
     $delete_tab = $_POST['tab'] ?? 'received';
     $delete_tab = in_array($delete_tab, ['received', 'sent'], true) ? $delete_tab : 'received';
+    $source = $_POST['source'] ?? 'claim';
+
+    // If this is a notification, handle deletion from notifications table
+    if ($source === 'notification') {
+        $check = $pdo->prepare("SELECT id FROM notifications WHERE id = ? AND user_id = ? LIMIT 1");
+        $check->execute([$claim_id, $user_id]);
+        if ($check->fetch(PDO::FETCH_ASSOC)) {
+            $del = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+            $del->execute([$claim_id, $user_id]);
+            header('Location: lost_found_inbox.php?tab=received&deleted=1');
+            exit;
+        }
+    }
 
     if ($delete_tab === 'received') {
         $check = $pdo->prepare("SELECT c.id FROM lost_found_claims c INNER JOIN lost_items i ON i.id = c.item_id WHERE c.id = ? AND i.user_id = ? LIMIT 1");
@@ -115,6 +140,59 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $claims = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Merge rental notifications into inbox
+if ($tab === 'received') {
+    $nstmt = $pdo->prepare("SELECT id, title, message, related_order_item_id, created_at FROM notifications WHERE user_id = ? AND type = 'rental' ORDER BY created_at DESC");
+    $nstmt->execute([$user_id]);
+    $notifs = $nstmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($notifs as $n) {
+        $claims[] = [
+            'id' => $n['id'],
+            'item_name' => $n['title'],
+            'item_description' => $n['message'],
+            'owner_name' => '',
+            'program' => '',
+            'contact' => '',
+            'social' => '',
+            'post_type' => 'notification',
+            'status' => 'open',
+            'user_id' => $user_id,
+            'claimant_name' => 'Seller',
+            'claimant_program' => '',
+            'claimant_contact' => '',
+            'message' => $n['message'],
+            'created_at' => $n['created_at']
+        ];
+    }
+} elseif ($tab === 'sent') {
+    $nstmt = $pdo->prepare("SELECT id, title, message, related_order_item_id, created_at FROM notifications WHERE user_id = ? AND type = 'rental_sent' ORDER BY created_at DESC");
+    $nstmt->execute([$user_id]);
+    $notifs = $nstmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($notifs as $n) {
+        $claims[] = [
+            'id' => $n['id'],
+            'item_name' => $n['title'],
+            'item_description' => $n['message'],
+            'owner_name' => '',
+            'program' => '',
+            'contact' => '',
+            'social' => '',
+            'post_type' => 'notification',
+            'status' => 'open',
+            'user_id' => $user_id,
+            'claimant_name' => 'Buyer',
+            'claimant_program' => '',
+            'claimant_contact' => '',
+            'message' => $n['message'],
+            'created_at' => $n['created_at']
+        ];
+    }
+}
+
+usort($claims, function ($a, $b) {
+    return strtotime($b['created_at']) - strtotime($a['created_at']);
+});
+
 if ($selectedClaimId <= 0 && count($claims) > 0) {
     $selectedClaimId = (int)$claims[0]['id'];
 }
@@ -131,12 +209,18 @@ function claimTitle(array $row): string {
     if (($row['post_type'] ?? '') === 'lost') {
         return 'Someone found your item';
     }
+    if (($row['post_type'] ?? '') === 'notification') {
+        return 'Rental update';
+    }
     return 'Someone is claiming your found item';
 }
 
 function claimPersonLabel(array $row): string {
     if (($row['post_type'] ?? '') === 'lost') {
         return 'Found by';
+    }
+    if (($row['post_type'] ?? '') === 'notification') {
+        return 'From';
     }
     return 'Claim by';
 }
@@ -250,7 +334,7 @@ Logout
         <section class="detail-wrap">
             <?php if ($selected): ?>
                 <div class="top-actions">
-                    <?php if ($tab === 'received' && ($selected['status'] ?? 'open') !== 'claimed'): ?>
+                    <?php if ($tab === 'received' && ($selected['post_type'] ?? '') !== 'notification' && ($selected['status'] ?? 'open') !== 'claimed'): ?>
                         <form method="POST">
                             <input type="hidden" name="action" value="mark_claimed">
                             <input type="hidden" name="claim_id" value="<?= (int)$selected['id'] ?>">
@@ -262,39 +346,49 @@ Logout
                         <input type="hidden" name="action" value="delete_message">
                         <input type="hidden" name="tab" value="<?= e($tab) ?>">
                         <input type="hidden" name="claim_id" value="<?= (int)$selected['id'] ?>">
+                        <input type="hidden" name="source" value="<?= ($selected['post_type'] ?? '') === 'notification' ? 'notification' : 'claim' ?>">
                         <button class="delete-btn" type="submit"><i class="fa-solid fa-trash"></i> Delete</button>
                     </form>
                 </div>
                 <div class="detail-card">
-                    <div class="detail-head">
-                        <h2><?= e($selected['item_name']) ?></h2>
-                        <span class="status <?= e($selected['status'] ?? 'open') ?>"><?= e($selected['status'] ?? 'open') ?></span>
-                    </div>
+                    <?php if (($selected['post_type'] ?? '') === 'notification'): ?>
+                        <div class="detail-head">
+                            <h2><?= e($selected['item_name']) ?></h2>
+                        </div>
+                        <div class="claim-box">
+                            <div class="info-line"><?= nl2br(e($selected['message'])) ?></div>
+                        </div>
+                    <?php else: ?>
+                        <div class="detail-head">
+                            <h2><?= e($selected['item_name']) ?></h2>
+                            <span class="status <?= e($selected['status'] ?? 'open') ?>"><?= e($selected['status'] ?? 'open') ?></span>
+                        </div>
 
-                    <div class="info-line"><strong><?= ($selected['post_type'] ?? '') === 'lost' ? 'Owner:' : 'Finder:' ?></strong> <?= e($selected['owner_name'] ?: 'Not provided') ?></div>
-                    <div class="info-line"><strong>Program/Year:</strong> <?= e($selected['program'] ?: 'Not provided') ?></div>
-                    <div class="info-line"><strong>Contact:</strong> <?= e($selected['contact'] ?: 'Not provided') ?></div>
-                    <div class="info-line"><strong>Social Media:</strong> <?= e($selected['social'] ?: 'Not provided') ?></div>
+                        <div class="info-line"><strong><?= ($selected['post_type'] ?? '') === 'lost' ? 'Owner:' : 'Finder:' ?></strong> <?= e($selected['owner_name'] ?: 'Not provided') ?></div>
+                        <div class="info-line"><strong>Program/Year:</strong> <?= e($selected['program'] ?: 'Not provided') ?></div>
+                        <div class="info-line"><strong>Contact:</strong> <?= e($selected['contact'] ?: 'Not provided') ?></div>
+                        <div class="info-line"><strong>Social Media:</strong> <?= e($selected['social'] ?: 'Not provided') ?></div>
 
-                    <div class="section-title">Description</div>
-                    <div class="desc-box"><?= nl2br(e($selected['item_description'])) ?></div>
+                        <div class="section-title">Description</div>
+                        <div class="desc-box"><?= nl2br(e($selected['item_description'])) ?></div>
 
-                    <div class="claim-box">
-                        <div class="info-line"><strong><?= e(claimPersonLabel($selected)) ?>:</strong> <?= e($selected['claimant_name']) ?></div>
-                        <div class="info-line"><strong>Program/Year:</strong> <?= e($selected['claimant_program'] ?: 'Not provided') ?></div>
-                        <div class="info-line"><strong>Contact:</strong> <?= e($selected['claimant_contact'] ?: 'Not provided') ?></div>
-                        <div class="info-line"><strong>Message:</strong> <?= e($selected['message'] ?: 'No message provided') ?></div>
-                    </div>
+                        <div class="claim-box">
+                            <div class="info-line"><strong><?= e(claimPersonLabel($selected)) ?>:</strong> <?= e($selected['claimant_name']) ?></div>
+                            <div class="info-line"><strong>Program/Year:</strong> <?= e($selected['claimant_program'] ?: 'Not provided') ?></div>
+                            <div class="info-line"><strong>Contact:</strong> <?= e($selected['claimant_contact'] ?: 'Not provided') ?></div>
+                            <div class="info-line"><strong>Message:</strong> <?= e($selected['message'] ?: 'No message provided') ?></div>
+                        </div>
 
-                    <div class="center-note">
-                        <?php if ($tab === 'received'): ?>
-                            <strong><?= ($selected['post_type'] ?? '') === 'lost' ? 'Claim your belonging' : 'Stay Reachable' ?></strong><br>
-                            Please use the contact information above to coordinate the item return.
-                        <?php else: ?>
-                            <strong>Notification sent</strong><br>
-                            Please wait for the poster to contact you using the details you provided.
-                        <?php endif; ?>
-                    </div>
+                        <div class="center-note">
+                            <?php if ($tab === 'received'): ?>
+                                <strong><?= ($selected['post_type'] ?? '') === 'lost' ? 'Claim your belonging' : 'Stay Reachable' ?></strong><br>
+                                Please use the contact information above to coordinate the item return.
+                            <?php else: ?>
+                                <strong>Notification sent</strong><br>
+                                Please wait for the poster to contact you using the details you provided.
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="detail-card empty">Select a notification to view its details.</div>
