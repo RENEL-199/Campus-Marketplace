@@ -48,9 +48,9 @@ function filterByCategory($products, $allowedCategories, $selectedCategory = nul
 }
 
 /* =========================
-   FEATURED ITEMS (1,2,4)
+    FEATURED ITEMS (1,2,4,7)
 ========================= */
-$featured_items = filterByCategory($products, [1, 2, 4, 6], $category);
+$featured_items = filterByCategory($products, [1, 2, 4, 7], $category);
 
 /* =========================
    RENTALS (5)
@@ -200,12 +200,13 @@ Logout
             <a class="category <?= $category == 3 ? 'active' : '' ?>" href="index.php?category=3">Services</a>
             <a class="category <?= $category == 4 ? 'active' : '' ?>" href="index.php?category=4">Preloved</a>
             <a class="category <?= $category == 5 ? 'active' : '' ?>" href="index.php?category=5">Rentals</a>
-            <a class="category <?= $category == 6 ? 'active' : '' ?>" href="index.php?category=6">Others</a>
+
+            <a class="category <?= $category == 7 ? 'active' : '' ?>" href="index.php?category=7">Others</a>
          
         </div>
 
         <!-- FEATURED ITEMS -->
-        <?php if (!$category || in_array($category, [1, 2, 4, 6])): ?>
+        <?php if (!$category || in_array($category, [1, 2, 4, 7])): ?>
 
             <div class="section-title">Featured Items</div>
 

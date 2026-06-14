@@ -1046,7 +1046,7 @@ Logout
         <option value="3">Services</option>
         <option value="4">Preloved</option>
         <option value="5">Rental</option>
-        <option value="6">Others</option>
+        <option value="7">Others</option>
 
     </select>
 </div>

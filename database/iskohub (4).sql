@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 14, 2026 at 05:38 AM
+-- Generation Time: Jun 14, 2026 at 10:31 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -58,7 +58,8 @@ INSERT INTO `categories` (`category_id`, `category_name`, `category_type`) VALUE
 (3, 'Services', 'service'),
 (4, 'Preloved', 'product'),
 (5, 'Rentals', 'rental'),
-(6, 'Lost & Found', 'lost_found');
+(6, 'Lost & Found', 'lost_found'),
+(7, 'Others', 'product');
 
 -- --------------------------------------------------------
 
@@ -78,13 +79,6 @@ CREATE TABLE `lost_found_claims` (
   `deleted_by_owner` tinyint(1) NOT NULL DEFAULT 0,
   `deleted_by_claimant` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `lost_found_claims`
---
-
-INSERT INTO `lost_found_claims` (`id`, `item_id`, `claimant_name`, `claimant_program`, `claimant_contact`, `message`, `user_id`, `created_at`, `deleted_by_owner`, `deleted_by_claimant`) VALUES
-(1, 1, 'Grace Guiterrez', 'BSIT 2-2', 'Grace Ganda sa fb', 'sa nb', 2, '2026-06-14 03:21:58', 0, 0);
 
 -- --------------------------------------------------------
 
@@ -114,7 +108,7 @@ CREATE TABLE `lost_items` (
 --
 
 INSERT INTO `lost_items` (`id`, `item_name`, `description`, `owner_name`, `program`, `contact`, `social`, `image`, `user_id`, `created_at`, `type`, `status`, `claimed_claim_id`, `claimed_at`) VALUES
-(1, 'Calculator', 'here sa nb', 'Sam Renly Cruzado', 'BSIT 2-2', '09123456789', 'Ren.el_X', 'uploads/lost_found/1781407298_ae1e2150.png', 1, '2026-06-14 03:21:38', 'lost', 'open', NULL, NULL);
+(1, 'Calculator', 'here sa nb', 'Sam Renly Cruzado', 'BSIT 2-2', '09123456789', 'Ren.el_X', 'uploads/lost_found/1781407298_ae1e2150.png', 1, '2026-06-14 03:21:38', 'lost', 'claimed', 2, '2026-06-14 16:08:20');
 
 -- --------------------------------------------------------
 
@@ -132,14 +126,6 @@ CREATE TABLE `notifications` (
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `notifications`
---
-
-INSERT INTO `notifications` (`id`, `user_id`, `type`, `title`, `message`, `related_order_item_id`, `is_read`, `created_at`) VALUES
-(1, 1, 'rental', 'Rental approved: Laptop', 'Your payment for \"Laptop\" has been approved by Pau. Contact: Not provided. Program/Year: Not provided.', 1, 0, '2026-06-14 11:21:03'),
-(2, 2, 'rental_sent', 'Rental approved: Laptop', 'You approved \"Laptop\" for buyer Sam Renly Cruzado (phone: 1213243413).', 1, 0, '2026-06-14 11:21:03');
 
 -- --------------------------------------------------------
 
@@ -165,7 +151,9 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`order_id`, `user_id`, `fullname`, `address`, `phone`, `payment_method`, `total`, `status`, `payment_proof_path`, `created_at`) VALUES
-(1, 1, 'Sam Renly Cruzado', 'BLOCK 20', '1213243413', 'Gcash', 200.00, 'confirmed', 'uploads/rental_receipts/1781407235_2758b20f.png', '2026-06-14 03:20:35');
+(18, 2, 'Sam Renly Cruzado', 'BLOCK 20', '1213243413', 'Cash on Delivery', 60.00, 'pending', NULL, '2026-06-14 08:13:12'),
+(19, 2, 'Sam Renly Cruzado', 'BLOCK 20', '1213243413', 'Gcash', 20.00, 'pending', 'uploads/gcash_receipts/1781424808_0d38870f.jpg', '2026-06-14 08:13:28'),
+(20, 2, 'Sam Renly Cruzado', 'BLOCK 20', '1213243413', 'Gcash', 60.00, 'confirmed', 'uploads/rental_receipts/1781424852_05057781.jpg', '2026-06-14 08:14:12');
 
 -- --------------------------------------------------------
 
@@ -192,7 +180,9 @@ CREATE TABLE `order_items` (
 --
 
 INSERT INTO `order_items` (`order_item_id`, `order_id`, `product_id`, `seller_id`, `product_name_snapshot`, `product_image_snapshot`, `rate_type_snapshot`, `item_type`, `quantity`, `unit_price`, `subtotal`) VALUES
-(1, 1, 2, 2, 'Laptop', 'uploads/1781407197_66390650.webp', 'Per Day', 'rental', 1, 200.00, 200.00);
+(14, 18, 6, 1, 'UTP WIRE', 'uploads/1781424766_f42107ec.jpg', 'Per Piece', 'product', 3, 20.00, 60.00),
+(15, 19, 6, 1, 'UTP WIRE', 'uploads/1781424766_f42107ec.jpg', 'Per Piece', 'product', 1, 20.00, 20.00),
+(16, 20, 5, 1, 'Calculator', 'uploads/1781424741_a13d2f0d.png', NULL, 'rental', 1, 20.00, 60.00);
 
 -- --------------------------------------------------------
 
@@ -223,7 +213,8 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`prod_id`, `user_id`, `category_id`, `prod_name`, `prod_desc`, `prod_price`, `prod_image`, `prod_stock`, `location`, `rate_type`, `rental_terms`, `seller_terms_accepted_at`, `status`, `created_at`, `updated_at`) VALUES
-(1, 1, 3, 'Printing Service', 'We provide high-quality printing solutions for businesses, organizations, and individuals. Our services include digital printing, large-format printing, business cards, flyers, brochures, posters, banners, invitations, stickers, and customized promotional materials. We are committed to delivering sharp, vibrant prints, fast turnaround times, competitive pricing, and excellent customer service to help bring your ideas and branding to life.', 10.00, 'uploads/1781406934_185c3196.png', 1, '', NULL, NULL, NULL, 'active', '2026-06-14 03:15:34', NULL);
+(1, 1, 3, 'Printing Service', 'We provide high-quality printing solutions for businesses, organizations, and individuals. Our services include digital printing, large-format printing, business cards, flyers, brochures, posters, banners, invitations, stickers, and customized promotional materials. We are committed to delivering sharp, vibrant prints, fast turnaround times, competitive pricing, and excellent customer service to help bring your ideas and branding to life.', 10.00, 'uploads/1781406934_185c3196.png', 1, '', NULL, NULL, NULL, 'active', '2026-06-14 03:15:34', NULL),
+(6, 1, 7, 'UTP WIRE', 'for sale', 20.00, 'uploads/1781424766_f42107ec.jpg', 6, '', 'Per Piece', NULL, NULL, 'active', '2026-06-14 08:12:46', '2026-06-14 08:29:36');
 
 -- --------------------------------------------------------
 
@@ -256,7 +247,12 @@ CREATE TABLE `rental_details` (
 --
 
 INSERT INTO `rental_details` (`id`, `ref_type`, `ref_id`, `date_from`, `date_to`, `rental_days`, `borrower_name`, `student_no`, `age`, `gender`, `payment_status`, `payment_proof_path`, `payment_verified_at`, `payment_verified_by`, `payment_rejection_reason`, `reservation_status`, `rental_terms_accepted`) VALUES
-(2, 'order', 1, '2026-06-09', '2026-06-08', 1, 'baba', 'a', 1, 'Male', 'Reserved', 'uploads/rental_receipts/1781407235_2758b20f.png', '2026-06-14 11:21:03', 2, NULL, 'Reserved', 1);
+(2, 'order', 1, '2026-06-09', '2026-06-08', 1, 'baba', 'a', 1, 'Male', 'Reserved', 'uploads/rental_receipts/1781407235_2758b20f.png', '2026-06-14 11:21:03', 2, NULL, 'Reserved', 1),
+(5, 'order', 5, '2026-06-02', '2026-06-09', 8, 'baba', 'a', 1, 'Male', 'Reserved', 'uploads/rental_receipts/1781420399_a751f5ae.jpg', '2026-06-14 15:01:48', 2, NULL, 'Reserved', 1),
+(9, 'order', 10, '2026-06-09', '2026-06-17', 9, 'baba', 'a', 1, 'Male', 'Rejected', 'uploads/rental_receipts/1781423210_a87354dc.png', NULL, NULL, 'N/A', 'Rejected', 1),
+(11, 'order', 12, '2026-06-09', '2026-06-17', 9, 'baba', 'a', 1, 'Male', 'Rejected', 'uploads/rental_receipts/1781423650_d646cb87.png', NULL, NULL, 'fake', 'Rejected', 1),
+(13, 'order', 13, '2026-06-09', '2026-06-25', 17, 'baba', 'a', 1, 'Male', 'Payment Proof Submitted', 'uploads/rental_receipts/1781424353_65f9e081.jpg', NULL, NULL, NULL, 'Payment Proof Submitted', 1),
+(15, 'order', 16, '2026-06-15', '2026-06-17', 3, 'baba', 'a', 1, 'Male', 'Reserved', 'uploads/rental_receipts/1781424852_05057781.jpg', '2026-06-14 16:18:45', 1, NULL, 'Reserved', 1);
 
 -- --------------------------------------------------------
 
@@ -312,9 +308,14 @@ CREATE TABLE `terms_acceptances` (
 --
 
 INSERT INTO `terms_acceptances` (`id`, `acceptance_type`, `subject_id`, `user_id`, `accepted_at`, `terms_text`, `user_agent`, `ip_address`) VALUES
-(1, 'seller', 1, 1, '2026-06-14 11:15:34', NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0', '::1'),
-(3, 'seller', 2, 2, '2026-06-14 11:32:26', NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0', '::1'),
-(5, 'rental', 1, 1, '2026-06-14 11:20:35', NULL, NULL, NULL);
+(1, 'seller', 1, 1, '2026-06-14 16:29:36', NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0', '::1'),
+(3, 'seller', 2, 2, '2026-06-14 15:53:38', NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0', '::1'),
+(5, 'rental', 1, 1, '2026-06-14 11:20:35', NULL, NULL, NULL),
+(9, 'rental', 5, 2, '2026-06-14 14:59:59', NULL, NULL, NULL),
+(10, 'rental', 10, 2, '2026-06-14 15:46:50', NULL, NULL, NULL),
+(15, 'rental', 12, 2, '2026-06-14 15:54:10', 'customer keme', NULL, NULL),
+(16, 'rental', 13, 2, '2026-06-14 16:05:53', 'customer keme', NULL, NULL),
+(19, 'rental', 16, 2, '2026-06-14 16:14:12', 'responsible for any damage', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -346,7 +347,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `user_name`, `stud_id`, `password`, `remember_token`, `profile_pic`, `course`, `year_level`, `age`, `gender`, `birthday`, `address`, `contact_number`, `email`, `created_at`) VALUES
 (1, 'Admin', 'Admin-00', '$2y$10$BlRgUJ/bKa.MkwNIGby/6OuBOy9JOTWfv8FEWgyYCuxVsacEMUvti', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-14 03:13:04'),
-(2, 'Pau', 'ST-100-00', '$2y$10$Wzr.dPuYVU0VLuR3Tw3s1.1MnfUjz4RqE6xF5F3G3GSXgTYExSTdW', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-14 03:16:38');
+(2, 'Pau', 'ST-100-00', '$2y$10$Wzr.dPuYVU0VLuR3Tw3s1.1MnfUjz4RqE6xF5F3G3GSXgTYExSTdW', NULL, 'uploads/profile/1781425005_b89b671f36d97f67.png', 'Sam Renly Cruzado', NULL, NULL, 'Male', '2026-07-03', 'BLOCK 20', '`1234567890', 'samrenlyc@gmail.com', '2026-06-14 03:16:38');
 
 --
 -- Indexes for dumped tables
@@ -466,19 +467,19 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `cart_items`
 --
 ALTER TABLE `cart_items`
-  MODIFY `cart_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `cart_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `lost_found_claims`
 --
 ALTER TABLE `lost_found_claims`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `lost_items`
@@ -490,31 +491,31 @@ ALTER TABLE `lost_items`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `prod_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `prod_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `rental_details`
 --
 ALTER TABLE `rental_details`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `service_details`
@@ -532,7 +533,7 @@ ALTER TABLE `service_files`
 -- AUTO_INCREMENT for table `terms_acceptances`
 --
 ALTER TABLE `terms_acceptances`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `users`

@@ -34,6 +34,10 @@ if ($product->category_id == 1) {
     $category_name = "Preloved";
 } elseif ($product->category_id == 5) {
     $category_name = "Rentals";
+} elseif ($product->category_id == 6) {
+    $category_name = "Lost & Found";
+} elseif ($product->category_id == 7) {
+    $category_name = "Others";
 }
 
 $stock = (int)$product->prod_stock;
