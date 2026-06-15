@@ -200,7 +200,6 @@ Logout
             <a class="category <?= $category == 3 ? 'active' : '' ?>" href="index.php?category=3">Services</a>
             <a class="category <?= $category == 4 ? 'active' : '' ?>" href="index.php?category=4">Preloved</a>
             <a class="category <?= $category == 5 ? 'active' : '' ?>" href="index.php?category=5">Rentals</a>
-
             <a class="category <?= $category == 7 ? 'active' : '' ?>" href="index.php?category=7">Others</a>
          
         </div>
@@ -249,7 +248,7 @@ Logout
                 <a href="lost_found.php" class="lost-found-card-link">
                     <div class="card lost-found-card">
                         <div class="lost-found-icon-box">
-                            <img src="uploads/lost_found-default.png" alt="Lost and Found">
+                            <img src="uploads/lost&found.png" alt="Lost and Found">
                         </div>
 
                         <div class="card-content">
